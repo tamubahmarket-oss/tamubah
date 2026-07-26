@@ -1,0 +1,990 @@
+import "dotenv/config";
+import express from "express";
+import path from "path";
+import fs from "fs";
+import crypto from "crypto";
+import { createServer as createViteServer } from "vite";
+
+// --- ADMIN AUTH ---
+// The admin passcode now lives server-side only (env var), never in client code.
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "";
+const ADMIN_SESSION_COOKIE = "tamubah_admin_session";
+const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+const adminSessions = new Map<string, number>(); // token -> expiry timestamp
+
+function parseCookies(header?: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  header.split(";").forEach((pair) => {
+    const idx = pair.indexOf("=");
+    if (idx > -1) {
+      const key = pair.slice(0, idx).trim();
+      const val = decodeURIComponent(pair.slice(idx + 1).trim());
+      cookies[key] = val;
+    }
+  });
+  return cookies;
+}
+
+function issueAdminSession(res: express.Response) {
+  // Clean up expired sessions opportunistically
+  for (const [tok, exp] of adminSessions) {
+    if (exp < Date.now()) adminSessions.delete(tok);
+  }
+  const token = crypto.randomBytes(32).toString("hex");
+  adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+  const secureFlag = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${ADMIN_SESSION_COOKIE}=${token}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${ADMIN_SESSION_TTL_MS / 1000}${secureFlag}`
+  );
+}
+
+function clearAdminSession(req: express.Request, res: express.Response) {
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies[ADMIN_SESSION_COOKIE];
+  if (token) adminSessions.delete(token);
+  res.setHeader("Set-Cookie", `${ADMIN_SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0`);
+}
+
+function requireAdminAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies[ADMIN_SESSION_COOKIE];
+  const expiry = token ? adminSessions.get(token) : undefined;
+  if (!token || !expiry || expiry < Date.now()) {
+    return res.status(401).json({ error: "Admin authentication required." });
+  }
+  // Sliding expiry: extend session on activity
+  adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+  next();
+}
+
+interface Seller {
+  id: string;
+  ownerName: string;
+  email: string;
+  businessName: string;
+  category: string;
+  ssmNumber?: string;
+  address: string;
+  phoneNumber: string;
+  location: string;
+  passwordHash: string; // Storing password securely
+  logoUrl?: string;
+  establishedYear?: string;
+  dream?: string;
+  isVerified?: boolean; // deprecated or synced with verificationTier
+  isApproved: boolean; // account approval status
+  verificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+}
+
+interface Product {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  isAvailable: boolean;
+  sellerId: string;
+  createdAt: string;
+}
+
+const DB_PATH = path.join(process.cwd(), "db.json");
+
+// Helper function to read DB
+function readDb() {
+  try {
+    if (!fs.existsSync(DB_PATH)) {
+      // Seed initial data
+      const initialDb = getSeedData();
+      fs.writeFileSync(DB_PATH, JSON.stringify(initialDb, null, 2));
+      return initialDb;
+    }
+    const data = fs.readFileSync(DB_PATH, "utf-8");
+    const parsed = JSON.parse(data);
+    if (!parsed.sellers) parsed.sellers = [];
+    if (!parsed.products) parsed.products = [];
+    if (!parsed.reports) parsed.reports = [];
+    if (!parsed.reviews) parsed.reviews = [];
+    
+    // Migrate sellers:
+    parsed.sellers = parsed.sellers.map((s: any) => {
+      if (s.isApproved === undefined) {
+        s.isApproved = s.isVerified !== undefined ? s.isVerified : false;
+      }
+      if (s.verificationTier === undefined) {
+        s.verificationTier = s.isVerified ? "Bronze" : "None";
+      }
+      return s;
+    });
+
+    if (!parsed.stats) {
+      parsed.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    }
+    if (!parsed.stats.logs) parsed.stats.logs = [];
+    return parsed;
+  } catch (error) {
+    console.error("Error reading db.json", error);
+    return { sellers: [], products: [], reviews: [], reports: [], stats: { visitorCount: 0, loginSuccessCount: 0, registerSuccessCount: 0, logs: [] } };
+  }
+}
+
+function addAdminLog(db: any, action: string, details: string) {
+  if (!db.stats) {
+    db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+  }
+  if (!db.stats.logs) db.stats.logs = [];
+  db.stats.logs.unshift({
+    id: "log_" + Math.random().toString(36).substr(2, 9),
+    timestamp: new Date().toISOString(),
+    action,
+    details
+  });
+}
+
+// Helper function to write DB
+function writeDb(data: any) {
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error("Error writing to db.json", error);
+  }
+}
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  // Middleware
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+  // --- API ENDPOINTS ---
+
+  // Get all registered sellers with public business profiles and statistics
+  app.get("/api/sellers", (req, res) => {
+    const db = readDb();
+    const reports = db.reports || [];
+    let enrichedSellers = db.sellers.map((s: Seller) => {
+      const sellerProducts = db.products.filter((p: Product) => p.sellerId === s.id);
+      const sellerReports = reports.filter((r: any) => r.sellerId === s.id);
+      const sellerReviews = (db.reviews || []).filter((r: any) => r.sellerId === s.id);
+      
+      const totalRating = sellerReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+      const averageRating = sellerReviews.length > 0 ? parseFloat((totalRating / sellerReviews.length).toFixed(1)) : 0;
+
+      const { passwordHash, ...sellerSafe } = s;
+      return {
+        ...sellerSafe,
+        productCount: sellerProducts.length,
+        reportCount: sellerReports.length,
+        averageRating,
+        reviewCount: sellerReviews.length
+      };
+    });
+
+    // Support server-side filtering
+    const search = (req.query.search as string || "").toLowerCase();
+    const location = req.query.location as string || "All";
+    const category = req.query.category as string || "All";
+    const filterType = req.query.filter as string || "all"; // 'all', 'verified', 'unverified'
+    const showAll = req.query.showAll === "true"; // if true, don't filter out unapproved sellers
+
+    if (search) {
+      enrichedSellers = enrichedSellers.filter((s: any) => 
+        s.businessName.toLowerCase().includes(search) ||
+        s.ownerName.toLowerCase().includes(search) ||
+        (s.dream && s.dream.toLowerCase().includes(search))
+      );
+    }
+    if (location && location !== "All") {
+      enrichedSellers = enrichedSellers.filter((s: any) => s.location === location);
+    }
+    if (category && category !== "All") {
+      enrichedSellers = enrichedSellers.filter((s: any) => s.category === category);
+    }
+    
+    // Admin or specific filters
+    if (filterType === "verified") {
+      enrichedSellers = enrichedSellers.filter((s: any) => s.verificationTier && s.verificationTier !== "None");
+    } else if (filterType === "unverified") {
+      enrichedSellers = enrichedSellers.filter((s: any) => !s.verificationTier || s.verificationTier === "None");
+    }
+
+    if (!showAll && filterType !== "unverified" && filterType !== "all") {
+      // Public view only shows verified (approved) sellers
+      enrichedSellers = enrichedSellers.filter((s: any) => !!s.isApproved);
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+
+    const paginatedSellers = enrichedSellers.slice(startIndex, endIndex);
+    
+    res.setHeader("X-Total-Count", enrichedSellers.length.toString());
+    res.setHeader("X-Has-More", (endIndex < enrichedSellers.length).toString());
+    res.json(paginatedSellers);
+  });
+
+  // Get active products with enriched seller info
+  app.get("/api/products", (req, res) => {
+    const db = readDb();
+    
+    // Increment visitor stats as active browsing
+    if (!db.stats) db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    db.stats.visitorCount = (db.stats.visitorCount || 0) + 1;
+    writeDb(db);
+
+    const reports = db.reports || [];
+    let enrichedProducts = db.products.map((p: any) => {
+      const seller = db.sellers.find((s: Seller) => s.id === p.sellerId);
+      const sellerReports = reports.filter((r: any) => r.sellerId === p.sellerId);
+      const sellerReviews = (db.reviews || []).filter((r: any) => r.sellerId === p.sellerId);
+      
+      const totalRating = sellerReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+      const averageRating = sellerReviews.length > 0 ? parseFloat((totalRating / sellerReviews.length).toFixed(1)) : 0;
+
+      return {
+        ...p,
+        sellerName: seller ? seller.ownerName : "Sabah Entrepreneur",
+        businessName: seller ? seller.businessName : "Home Business",
+        availableArea: seller ? seller.location : "Sabah",
+        contactNumber: seller ? seller.phoneNumber : "",
+        address: seller ? seller.address : "",
+        sellerLogoUrl: seller ? seller.logoUrl : undefined,
+        sellerEstablishedYear: seller ? seller.establishedYear : undefined,
+        sellerDream: seller ? seller.dream : undefined,
+        sellerIsVerified: seller ? !!seller.isVerified : false,
+        sellerIsApproved: seller ? !!seller.isApproved : false,
+        sellerVerificationTier: seller ? (seller.verificationTier || "None") : "None",
+        ssmNumber: seller ? seller.ssmNumber : "",
+        reportCount: sellerReports.length,
+        sellerAverageRating: averageRating,
+        sellerReviewCount: sellerReviews.length
+      };
+    });
+
+    // Support server-side filtering
+    const search = (req.query.search as string || "").toLowerCase();
+    const category = req.query.category as string || "All";
+    const location = req.query.location as string || "All";
+    const showAll = req.query.showAll === "true"; // if we want to bypass seller verification in admin
+
+    if (search) {
+      enrichedProducts = enrichedProducts.filter((p: any) => 
+        p.title.toLowerCase().includes(search) ||
+        p.description.toLowerCase().includes(search) ||
+        p.businessName.toLowerCase().includes(search)
+      );
+    }
+    if (category && category !== "All") {
+      enrichedProducts = enrichedProducts.filter((p: any) => p.category === category);
+    }
+    if (location && location !== "All") {
+      enrichedProducts = enrichedProducts.filter((p: any) => p.availableArea === location);
+    }
+    if (!showAll) {
+      // By default only show products from approved sellers in public feed
+      enrichedProducts = enrichedProducts.filter((p: any) => !!p.sellerIsApproved);
+    }
+
+    // Sort: pinned/featured on top, then newest first
+    enrichedProducts.sort((a: any, b: any) => {
+      const pinA = a.isPinned ? 1 : 0;
+      const pinB = b.isPinned ? 1 : 0;
+      if (pinA !== pinB) {
+        return pinB - pinA;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+
+    const paginatedProducts = enrichedProducts.slice(startIndex, endIndex);
+    
+    res.setHeader("X-Total-Count", enrichedProducts.length.toString());
+    res.setHeader("X-Has-More", (endIndex < enrichedProducts.length).toString());
+    res.json(paginatedProducts);
+  });
+
+  // Get a single product by ID (for direct sharing links)
+  app.get("/api/products/:id", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+    const product = db.products.find((p: any) => p.id === id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+
+    const seller = db.sellers.find((s: Seller) => s.id === product.sellerId);
+    const reports = db.reports || [];
+    const sellerReports = reports.filter((r: any) => r.sellerId === product.sellerId);
+    const sellerReviews = (db.reviews || []).filter((r: any) => r.sellerId === product.sellerId);
+    
+    const totalRating = sellerReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+    const averageRating = sellerReviews.length > 0 ? parseFloat((totalRating / sellerReviews.length).toFixed(1)) : 0;
+
+    const enrichedProduct = {
+      ...product,
+      sellerName: seller ? seller.ownerName : "Sabah Entrepreneur",
+      businessName: seller ? seller.businessName : "Home Business",
+      availableArea: seller ? seller.location : "Sabah",
+      contactNumber: seller ? seller.phoneNumber : "",
+      address: seller ? seller.address : "",
+      sellerLogoUrl: seller ? seller.logoUrl : undefined,
+      sellerEstablishedYear: seller ? seller.establishedYear : undefined,
+      sellerDream: seller ? seller.dream : undefined,
+      sellerIsVerified: seller ? !!seller.isVerified : false,
+      sellerIsApproved: seller ? !!seller.isApproved : false,
+      sellerVerificationTier: seller ? (seller.verificationTier || "None") : "None",
+      ssmNumber: seller ? seller.ssmNumber : "",
+      reportCount: sellerReports.length,
+      sellerAverageRating: averageRating,
+      sellerReviewCount: sellerReviews.length
+    };
+
+    res.json(enrichedProduct);
+  });
+
+  // Submit a report against a seller
+  app.post("/api/reports", (req, res) => {
+    const { sellerId, productId, reason, description, reporterEmail } = req.body;
+
+    if (!sellerId || !reason || !description || !reporterEmail) {
+      return res.status(400).json({ error: "Missing required fields for submitting a report." });
+    }
+
+    const db = readDb();
+    
+    // Create new report
+    const newReport = {
+      id: "rep_" + Math.random().toString(36).substr(2, 9),
+      sellerId,
+      productId: productId || "",
+      reason,
+      description,
+      reporterEmail,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (!db.reports) {
+      db.reports = [];
+    }
+    db.reports.push(newReport);
+    writeDb(db);
+
+    res.json({ success: true, report: newReport });
+  });
+
+  // Validate SSM registration number and check duplicate
+  app.get("/api/validate-ssm", (req, res) => {
+    const { ssm } = req.query;
+    if (!ssm || typeof ssm !== "string") {
+      return res.status(400).json({ isValid: false, error: "SSM number is required." });
+    }
+
+    const clean = ssm.replace(/[\s-]/g, "").toUpperCase();
+    if (!clean) {
+      return res.status(400).json({ isValid: false, error: "SSM number cannot be empty." });
+    }
+
+    // Formats:
+    // 1. New 12-digit format: YYYY (year) + XX (type: 01-06) + NNNNNN (seq)
+    const newFormatRegex = /^(19\d\d|20[0-2]\d)(0[1-6])(\d{6})$/;
+    // 2. Old Company: 1-7 digits + letter
+    const oldCompanyRegex = /^(\d{1,7})([A-Z])$/;
+    // 3. Old Business: 9 digits + letter, or 2 letters + 7 digits + letter
+    const oldBusinessRegex = /^([A-Z]{2}\d{7}|\d{9})([A-Z])$/;
+    // 4. Old LLP: LLP + 7 digits + optional letters
+    const oldLlpRegex = /^(LLP\d{7})([A-Z]*)$/;
+    // 5. Sabah local Trading License: alphanumeric, slashes, hyphens (4 to 35 chars)
+    const sabahLicenseRegex = /^[A-Z0-9\/\-]{4,35}$/;
+
+    let isValid = false;
+    let format = "";
+    let entityType = "Registered Entity";
+    let yearOfIncorp = "Unknown";
+    let regulatedBy = "Suruhanjaya Syarikat Malaysia (SSM)";
+
+    if (newFormatRegex.test(clean)) {
+      isValid = true;
+      format = "new";
+      const match = clean.match(newFormatRegex)!;
+      yearOfIncorp = match[1];
+      const typeCode = match[2];
+      if (typeCode === "01") entityType = "Syarikat Sendirian Berhad (Sdn. Bhd.)";
+      else if (typeCode === "02") entityType = "Syarikat Berhad (Bhd.) / Foreign Corp";
+      else if (typeCode === "03") entityType = "Perniagaan Tunggal / Perkongsian (Sole Prop / Partnership)";
+      else if (typeCode === "04" || typeCode === "05" || typeCode === "06") entityType = "Perkongsian Liabiliti Terhad (LLP)";
+    } else if (oldCompanyRegex.test(clean)) {
+      isValid = true;
+      format = "old_company";
+      entityType = "Sdn. Bhd. / Berhad (Old Company Format)";
+    } else if (oldBusinessRegex.test(clean)) {
+      isValid = true;
+      format = "old_business";
+      entityType = "Sole Proprietorship / Partnership (Old Business Format)";
+    } else if (oldLlpRegex.test(clean)) {
+      isValid = true;
+      format = "old_llp";
+      entityType = "Limited Liability Partnership (Old LLP Format)";
+    } else if (sabahLicenseRegex.test(clean)) {
+      isValid = true;
+      format = "sabah_license";
+      entityType = "Sabah Trading License (Lesen Perniagaan Sabah)";
+      regulatedBy = "Local Authority / Municipal Council / District Office (Sabah)";
+    }
+
+    if (!isValid) {
+      return res.json({
+        isValid: false,
+        error: "Invalid format. Please enter a valid Sabah Trading License or SSM number (e.g. DBKK/12345/2026, KKS-12345, or 202603120150)."
+      });
+    }
+
+    // Check duplication in DB
+    const db = readDb();
+    const cleanSsmInput = clean.replace(/[^A-Z0-9]/g, "");
+    const duplicatedSeller = db.sellers.find((s: any) => {
+      if (!s.ssmNumber) return false;
+      const cleanS = s.ssmNumber.replace(/[^A-Z0-9]/g, "").toUpperCase();
+      return cleanS === cleanSsmInput;
+    });
+
+    if (duplicatedSeller) {
+      return res.json({
+        isValid: true,
+        isDuplicated: true,
+        duplicatedBusinessName: duplicatedSeller.businessName,
+        error: `This license or SSM number is already registered under "${duplicatedSeller.businessName}".`
+      });
+    }
+
+    // Return mock verification info
+    const months = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+    const randomMonth = months[Math.floor(Math.random() * months.length)];
+    const randomDay = Math.floor(Math.random() * 28) + 1;
+    const dateOfRegistration = yearOfIncorp !== "Unknown"
+      ? `${randomDay} ${randomMonth} ${yearOfIncorp}`
+      : `${randomDay} ${randomMonth} ${Math.floor(Math.random() * 10) + 2010}`;
+
+    res.json({
+      isValid: true,
+      isDuplicated: false,
+      format,
+      entityType,
+      registrationDate: dateOfRegistration,
+      status: "ACTIVE",
+      regulatedBy,
+      message: "Business license/SSM verified successfully!"
+    });
+  });
+
+  // Seller registration
+  app.post("/api/register", (req, res) => {
+    const { ownerName, email, businessName, category, ssmNumber, address, phoneNumber, password, location } = req.body;
+
+    if (!ownerName || !email || !businessName || !category || !address || !phoneNumber || !password || !location) {
+      return res.status(400).json({ error: "All required fields must be filled." });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    }
+
+    const db = readDb();
+    
+    // Check if user already exists
+    const existingEmail = db.sellers.find((s: Seller) => s.email.toLowerCase().trim() === email.toLowerCase().trim());
+    const existingOwner = db.sellers.find((s: Seller) => s.ownerName.toLowerCase().trim() === ownerName.toLowerCase().trim());
+    const existingBusiness = db.sellers.find((s: Seller) => s.businessName.toLowerCase().trim() === businessName.toLowerCase().trim());
+    
+    if (existingEmail) {
+      return res.status(400).json({ error: "An account with this email already exists." });
+    }
+    if (existingOwner) {
+      return res.status(400).json({ error: "An account with this Owner/Entrepreneur Name already exists." });
+    }
+    if (existingBusiness) {
+      return res.status(400).json({ error: "An account with this Business Name already exists." });
+    }
+
+    const newSeller: Seller = {
+      id: "seller_" + Math.random().toString(36).substr(2, 9),
+      ownerName,
+      email,
+      businessName,
+      category,
+      ssmNumber: ssmNumber || "",
+      address,
+      phoneNumber,
+      location,
+      passwordHash: password, // Store plain text for local simple persistent prototype
+      isVerified: false,
+      isApproved: false,
+      verificationTier: "None",
+    };
+
+    db.sellers.push(newSeller);
+    
+    // Increment register stats & log
+    if (!db.stats) db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    db.stats.registerSuccessCount = (db.stats.registerSuccessCount || 0) + 1;
+    addAdminLog(db, "seller_registered", `Seller registered: ${businessName} (by ${ownerName})`);
+    
+    writeDb(db);
+
+    // Don't send back password
+    const { passwordHash, ...sellerSafe } = newSeller;
+    res.json({ success: true, seller: sellerSafe });
+  });
+
+  // Seller login
+  app.post("/api/login", (req, res) => {
+    const { identity, password } = req.body;
+
+    if (!identity || !password) {
+      return res.status(400).json({ error: "Name/Email and password are required." });
+    }
+
+    const db = readDb();
+    
+    // Find seller by email or ownerName
+    const seller = db.sellers.find(
+      (s: Seller) =>
+        s.email.toLowerCase() === identity.toLowerCase() ||
+        s.ownerName.toLowerCase() === identity.toLowerCase()
+    );
+
+    if (!seller || seller.passwordHash !== password) {
+      return res.status(400).json({ error: "Invalid credentials. Please check your name/email and password." });
+    }
+
+    // Increment login stats & log
+    if (!db.stats) db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    db.stats.loginSuccessCount = (db.stats.loginSuccessCount || 0) + 1;
+    addAdminLog(db, "seller_logged_in", `Seller logged in: ${seller.businessName} (${seller.ownerName})`);
+    
+    writeDb(db);
+
+    const { passwordHash, ...sellerSafe } = seller;
+    res.json({ success: true, seller: sellerSafe });
+  });
+
+  // Get single seller profile (to fetch latest approval status and ratings)
+  app.get("/api/sellers/:id", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+    const seller = db.sellers.find((s: Seller) => s.id === id);
+    if (!seller) {
+      return res.status(404).json({ error: "Seller profile not found." });
+    }
+    const reports = db.reports || [];
+    const sellerProducts = db.products.filter((p: Product) => p.sellerId === seller.id);
+    const sellerReports = reports.filter((r: any) => r.sellerId === seller.id);
+    const sellerReviews = (db.reviews || []).filter((r: any) => r.sellerId === seller.id);
+    
+    const totalRating = sellerReviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+    const averageRating = sellerReviews.length > 0 ? parseFloat((totalRating / sellerReviews.length).toFixed(1)) : 0;
+
+    const { passwordHash, ...sellerSafe } = seller;
+    res.json({ 
+      success: true, 
+      seller: {
+        ...sellerSafe,
+        productCount: sellerProducts.length,
+        reportCount: sellerReports.length,
+        averageRating,
+        reviewCount: sellerReviews.length
+      }
+    });
+  });
+
+  // Track seller contact clicks
+  app.post("/api/sellers/:id/contact-click", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+    
+    if (!db.stats) {
+      db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    }
+    db.stats.contactSellerCount = (db.stats.contactSellerCount || 0) + 1;
+    
+    const seller = db.sellers.find((s: Seller) => s.id === id);
+    if (seller) {
+      seller.contactCount = (seller.contactCount || 0) + 1;
+      addAdminLog(
+        db, 
+        "seller_contact_click", 
+        `User clicked contact line for ${seller.businessName} (Owner: ${seller.ownerName})`
+      );
+    }
+    
+    writeDb(db);
+    res.json({ 
+      success: true, 
+      contactSellerCount: db.stats.contactSellerCount, 
+      sellerContactCount: seller ? (seller.contactCount || 0) : 0 
+    });
+  });
+
+  // Submit a review / rating for a seller
+  app.post("/api/sellers/:id/reviews", (req, res) => {
+    const { id } = req.params;
+    const { rating, comment, reviewerName } = req.body;
+
+    if (!rating || !reviewerName) {
+      return res.status(400).json({ error: "Rating and reviewer name are required." });
+    }
+
+    const numRating = parseInt(rating);
+    if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ error: "Rating must be an integer between 1 and 5." });
+    }
+
+    const db = readDb();
+    if (!db.reviews) db.reviews = [];
+
+    const seller = db.sellers.find((s: Seller) => s.id === id);
+    if (!seller) {
+      return res.status(404).json({ error: "Seller not found." });
+    }
+
+    const newReview = {
+      id: "rev_" + Math.random().toString(36).substr(2, 9),
+      sellerId: id,
+      rating: numRating,
+      comment: comment || "",
+      reviewerName,
+      createdAt: new Date().toISOString()
+    };
+
+    db.reviews.unshift(newReview);
+    
+    // Log event
+    addAdminLog(
+      db, 
+      "seller_reviewed", 
+      `User "${reviewerName}" rated "${seller.businessName}" ${numRating}/5: "${comment || 'No comment'}"`
+    );
+
+    writeDb(db);
+    res.json({ success: true, review: newReview });
+  });
+
+  // Get reviews for a seller
+  app.get("/api/sellers/:id/reviews", (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+    const reviews = db.reviews || [];
+    const sellerReviews = reviews.filter((r: any) => r.sellerId === id);
+    res.json(sellerReviews);
+  });
+
+  // Update seller profile
+  app.patch("/api/sellers/:id", (req, res) => {
+    const { id } = req.params;
+    const { logoUrl, establishedYear, dream, businessName, address, phoneNumber, location, ssmNumber, ownerName } = req.body;
+
+    const db = readDb();
+    const sellerIndex = db.sellers.findIndex((s: Seller) => s.id === id);
+
+    if (sellerIndex === -1) {
+      return res.status(404).json({ error: "Seller profile not found." });
+    }
+
+    const seller = db.sellers[sellerIndex];
+
+    // Update fields
+    if (logoUrl !== undefined) seller.logoUrl = logoUrl;
+    if (establishedYear !== undefined) seller.establishedYear = establishedYear;
+    if (dream !== undefined) seller.dream = dream;
+    
+    // Also allow updating standard fields
+    if (businessName) seller.businessName = businessName;
+    if (address) seller.address = address;
+    if (phoneNumber) seller.phoneNumber = phoneNumber;
+    if (location) seller.location = location;
+    if (ssmNumber !== undefined) {
+      seller.ssmNumber = ssmNumber;
+      seller.isVerified = !!ssmNumber;
+    }
+    if (ownerName) seller.ownerName = ownerName;
+
+    writeDb(db);
+
+    const { passwordHash, ...sellerSafe } = seller;
+    res.json({ success: true, seller: sellerSafe });
+  });
+
+  // Create product
+  app.post("/api/products", (req, res) => {
+    const { title, category, description, price, imageUrl, isAvailable, sellerId } = req.body;
+
+    if (!title || !category || !description || !price || !imageUrl || !sellerId) {
+      return res.status(400).json({ error: "All product fields are required, including an uploaded image." });
+    }
+
+    const db = readDb();
+    
+    // Validate seller exists
+    const seller = db.sellers.find((s: Seller) => s.id === sellerId);
+    if (!seller) {
+      return res.status(403).json({ error: "Unauthorized. Seller account not found." });
+    }
+    if (!seller.isApproved) {
+      return res.status(403).json({ error: "Your account is pending admin approval. You cannot list new products yet." });
+    }
+
+    const newProduct: Product = {
+      id: "prod_" + Math.random().toString(36).substr(2, 9),
+      title,
+      category,
+      description,
+      price: parseFloat(price),
+      imageUrl,
+      isAvailable: isAvailable !== undefined ? isAvailable : true,
+      sellerId,
+      createdAt: new Date().toISOString(),
+    };
+
+    db.products.unshift(newProduct); // Add to the beginning of list
+    writeDb(db);
+
+    res.json({ success: true, product: newProduct });
+  });
+
+  // Toggle product availability
+  app.patch("/api/products/:id/toggle", (req, res) => {
+    const { id } = req.params;
+    const { sellerId } = req.body;
+
+    const db = readDb();
+    const productIndex = db.products.findIndex((p: Product) => p.id === id);
+
+    if (productIndex === -1) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+
+    const product = db.products[productIndex];
+    if (product.sellerId !== sellerId) {
+      return res.status(403).json({ error: "Unauthorized to update this product." });
+    }
+
+    const seller = db.sellers.find((s: Seller) => s.id === sellerId);
+    if (!seller || !seller.isApproved) {
+      return res.status(403).json({ error: "Unauthorized. Your account is pending admin approval." });
+    }
+
+    product.isAvailable = !product.isAvailable;
+    writeDb(db);
+
+    res.json({ success: true, product });
+  });
+
+  // Delete product
+  app.delete("/api/products/:id", (req, res) => {
+    const { id } = req.params;
+    const { sellerId } = req.query;
+
+    if (!sellerId) {
+      return res.status(400).json({ error: "Seller ID is required for deletion." });
+    }
+
+    const db = readDb();
+    const productIndex = db.products.findIndex((p: Product) => p.id === id);
+
+    if (productIndex === -1) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+
+    const product = db.products[productIndex];
+    if (product.sellerId !== sellerId) {
+      return res.status(403).json({ error: "Unauthorized to delete this product." });
+    }
+
+    const seller = db.sellers.find((s: Seller) => s.id === sellerId as string);
+    if (!seller || !seller.isApproved) {
+      return res.status(403).json({ error: "Unauthorized. Your account is pending admin approval." });
+    }
+
+    db.products.splice(productIndex, 1);
+    writeDb(db);
+
+    res.json({ success: true });
+  });
+
+  // --- ADMIN AUTH ENDPOINTS ---
+
+  // Admin login: verifies passcode server-side and issues an HttpOnly session cookie
+  app.post("/api/admin/login", (req, res) => {
+    const { passcode } = req.body;
+    if (!ADMIN_PASSCODE) {
+      return res.status(500).json({ error: "Admin passcode is not configured on the server." });
+    }
+    if (!passcode || passcode !== ADMIN_PASSCODE) {
+      return res.status(401).json({ error: "Incorrect admin passcode. Access denied." });
+    }
+    issueAdminSession(res);
+    res.json({ success: true });
+  });
+
+  // Admin logout
+  app.post("/api/admin/logout", (req, res) => {
+    clearAdminSession(req, res);
+    res.json({ success: true });
+  });
+
+  // Check whether the current session is a valid admin session
+  app.get("/api/admin/check", requireAdminAuth, (req, res) => {
+    res.json({ success: true });
+  });
+
+  // --- ADMIN BACKEND MANAGEMENT ENDPOINTS ---
+
+  // Get backend admin statistics and logs
+  app.get("/api/admin/stats", requireAdminAuth, (req, res) => {
+    const db = readDb();
+    if (!db.stats) {
+      db.stats = { visitorCount: 154, loginSuccessCount: 12, registerSuccessCount: 5, logs: [] };
+    }
+    const reports = db.reports || [];
+    const enrichedReports = reports.map((r: any) => {
+      const seller = db.sellers.find((s: any) => s.id === r.sellerId);
+      const product = db.products.find((p: any) => p.id === r.productId);
+      return {
+        ...r,
+        sellerName: seller ? seller.businessName : "Unknown Seller",
+        productTitle: product ? product.title : "Entire Store"
+      };
+    });
+
+    res.json({
+      visitorCount: db.stats.visitorCount || 0,
+      loginSuccessCount: db.stats.loginSuccessCount || 0,
+      registerSuccessCount: db.stats.registerSuccessCount || 0,
+      contactSellerCount: db.stats.contactSellerCount || 0,
+      logs: db.stats.logs || [],
+      totalSellers: db.sellers.length,
+      totalProducts: db.products.length,
+      totalReports: reports.length,
+      reports: enrichedReports
+    });
+  });
+
+  // Approve/verify a seller and change badge tiers
+  app.post("/api/admin/sellers/:id/verify", requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { isVerified, isApproved, verificationTier } = req.body;
+
+    const db = readDb();
+    const seller = db.sellers.find((s: Seller) => s.id === id);
+
+    if (!seller) {
+      return res.status(404).json({ error: "Seller not found." });
+    }
+
+    if (isApproved !== undefined) {
+      seller.isApproved = !!isApproved;
+    }
+    if (verificationTier !== undefined) {
+      seller.verificationTier = verificationTier;
+      seller.isVerified = verificationTier !== "None";
+    } else if (isVerified !== undefined) {
+      // Backward compatibility fallback
+      seller.isVerified = !!isVerified;
+      if (seller.isVerified && (!seller.verificationTier || seller.verificationTier === "None")) {
+        seller.verificationTier = "Bronze";
+      } else if (!seller.isVerified) {
+        seller.verificationTier = "None";
+      }
+    }
+
+    addAdminLog(
+      db, 
+      "seller_verification_changed", 
+      `Changed approval/verification for ${seller.businessName}: Approved=${seller.isApproved}, Tier=${seller.verificationTier || "None"}`
+    );
+    writeDb(db);
+
+    res.json({ success: true, seller });
+  });
+
+  // Delete a seller and all related marketplace content
+  app.delete("/api/admin/sellers/:id", requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const db = readDb();
+    const sellerIndex = db.sellers.findIndex((s: Seller) => s.id === id);
+
+    if (sellerIndex === -1) {
+      return res.status(404).json({ error: "Seller not found." });
+    }
+
+    const seller = db.sellers[sellerIndex];
+    db.sellers.splice(sellerIndex, 1);
+    db.products = db.products.filter((p: Product) => p.sellerId !== id);
+    db.reports = (db.reports || []).filter((r: any) => r.sellerId !== id);
+    db.reviews = (db.reviews || []).filter((r: any) => r.sellerId !== id);
+
+    addAdminLog(db, "seller_deleted", `Deleted merchant "${seller.businessName}" and all associated listings`);
+    writeDb(db);
+
+    res.json({ success: true });
+  });
+
+  // Pin/featured a product to put on top
+  app.post("/api/admin/products/:id/pin", requireAdminAuth, (req, res) => {
+    const { id } = req.params;
+    const { isPinned } = req.body;
+
+    const db = readDb();
+    const product = db.products.find((p: any) => p.id === id);
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found." });
+    }
+
+    product.isPinned = !!isPinned;
+    addAdminLog(db, "product_pin_changed", `Changed pin status for "${product.title}" to ${product.isPinned ? "PINNED (ON TOP)" : "UNPINNED"}`);
+    writeDb(db);
+
+    res.json({ success: true, product });
+  });
+
+  // --- VITE DEV / PRODUCTION HANDLERS ---
+
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+// SVG Base64 constants to avoid bulky content in db.json but look premium and local
+function getSeedData() {
+  const sellers: any[] = [];
+  const products: any[] = [];
+  const reviews: any[] = [];
+
+  return { sellers, products, reviews, reports: [] };
+}
+
+startServer();

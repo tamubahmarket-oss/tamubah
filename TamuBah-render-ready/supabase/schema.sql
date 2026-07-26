@@ -1,0 +1,161 @@
+-- ============================================================================
+-- TamuBah — Supabase schema
+-- Run this once in the Supabase SQL Editor (or via `supabase db push`).
+--
+-- Design notes:
+-- - The Express server is the ONLY thing that talks to Supabase, using the
+--   SERVICE ROLE key (server-side only, never shipped to the browser).
+--   The React frontend keeps calling your existing /api/* routes exactly
+--   as before — no frontend data-fetching code needs to change.
+-- - RLS is enabled on every table with NO policies, so even if the anon/public
+--   key ever leaked, it could read or write nothing. Only the service role
+--   (which bypasses RLS) can touch these tables.
+-- ============================================================================
+
+create extension if not exists pgcrypto;
+
+-- ---------------------------------------------------------------------------
+-- sellers
+-- ---------------------------------------------------------------------------
+create table if not exists sellers (
+  id                    text primary key,
+  owner_name            text not null,
+  email                 text not null unique,
+  business_name         text not null unique,
+  category              text not null,
+  ssm_number            text default '',
+  address               text not null,
+  phone_number          text not null,
+  location              text not null,
+  password_hash         text not null, -- bcrypt hash
+  logo_url              text,
+  established_year      text,
+  dream                 text,
+  is_verified           boolean not null default false,
+  is_approved           boolean not null default false,
+  verification_tier     text not null default 'None'
+                          check (verification_tier in ('None','Bronze','Silver','Gold')),
+  show_phone_publicly   boolean not null default true,
+  contact_count         integer not null default 0,
+  created_at            timestamptz not null default now()
+);
+
+create index if not exists idx_sellers_location on sellers(location);
+create index if not exists idx_sellers_category on sellers(category);
+create index if not exists idx_sellers_is_approved on sellers(is_approved);
+
+-- ---------------------------------------------------------------------------
+-- products
+-- ---------------------------------------------------------------------------
+create table if not exists products (
+  id            text primary key,
+  title         text not null,
+  category      text not null,
+  description   text not null,
+  price         numeric not null,
+  image_url     text not null,
+  is_available  boolean not null default true,
+  is_pinned     boolean not null default false,
+  seller_id     text not null references sellers(id) on delete cascade,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists idx_products_seller_id on products(seller_id);
+create index if not exists idx_products_category on products(category);
+create index if not exists idx_products_created_at on products(created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- reviews
+-- ---------------------------------------------------------------------------
+create table if not exists reviews (
+  id             text primary key,
+  seller_id      text not null references sellers(id) on delete cascade,
+  rating         integer not null check (rating between 1 and 5),
+  comment        text default '',
+  reviewer_name  text not null,
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists idx_reviews_seller_id on reviews(seller_id);
+
+-- ---------------------------------------------------------------------------
+-- reports (seller/product reports from users)
+-- ---------------------------------------------------------------------------
+create table if not exists reports (
+  id              text primary key,
+  seller_id       text not null references sellers(id) on delete cascade,
+  product_id      text,
+  reason          text not null,
+  description     text not null,
+  reporter_email  text not null,
+  status          text not null default 'open' check (status in ('open','resolved','dismissed')),
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists idx_reports_seller_id on reports(seller_id);
+create index if not exists idx_reports_status on reports(status);
+
+-- ---------------------------------------------------------------------------
+-- admin_users — replaces the single shared ADMIN_PASSCODE env var.
+-- You can now have multiple named admin accounts, each with their own
+-- passcode, added/removed/rotated from inside the Admin Panel.
+-- ---------------------------------------------------------------------------
+create table if not exists admin_users (
+  id             text primary key,
+  username       text not null unique,
+  passcode_hash  text not null, -- bcrypt hash
+  created_at     timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
+-- admin_sessions — moved out of in-memory Map so sessions survive restarts
+-- and work correctly even if you ever run more than one server instance.
+-- ---------------------------------------------------------------------------
+create table if not exists admin_sessions (
+  token       text primary key,
+  admin_id    text not null references admin_users(id) on delete cascade,
+  expires_at  timestamptz not null
+);
+
+create index if not exists idx_admin_sessions_expires_at on admin_sessions(expires_at);
+
+-- ---------------------------------------------------------------------------
+-- admin_logs — activity feed shown in the Admin Panel "Logs" tab
+-- ---------------------------------------------------------------------------
+create table if not exists admin_logs (
+  id          text primary key,
+  action      text not null,
+  details     text not null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_admin_logs_created_at on admin_logs(created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- app_stats — single-row counters (visitors, logins, registrations, contacts)
+-- ---------------------------------------------------------------------------
+create table if not exists app_stats (
+  id                       integer primary key default 1,
+  visitor_count            integer not null default 0,
+  login_success_count      integer not null default 0,
+  register_success_count   integer not null default 0,
+  contact_seller_count     integer not null default 0,
+  constraint app_stats_singleton check (id = 1)
+);
+
+insert into app_stats (id) values (1) on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Lock everything down: enable RLS, add zero policies.
+-- The server always connects with the service role key, which bypasses RLS,
+-- so these tables stay fully usable by your API while being unreachable by
+-- the public anon key.
+-- ---------------------------------------------------------------------------
+alter table sellers         enable row level security;
+alter table products        enable row level security;
+alter table reviews         enable row level security;
+alter table reports         enable row level security;
+alter table admin_users     enable row level security;
+alter table admin_sessions  enable row level security;
+alter table admin_logs      enable row level security;
+alter table app_stats       enable row level security;
