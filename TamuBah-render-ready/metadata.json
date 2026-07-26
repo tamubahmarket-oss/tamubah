@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Remix: Sabah Entrepreneur Marketplace",
+  "description": "A digital marketplace for small home-based entrepreneurs in Sabah, Malaysia, to list and sell their homemade food, bakery, desserts, drinks, and stocks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
