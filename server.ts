@@ -5,6 +5,24 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServer as createViteServer } from "vite";
+import { createRequire } from "module";
+
+// ============================================================================
+// WEBSOCKET POLYFILL — @supabase/realtime-js requires a native WebSocket
+// implementation (available in Node 22+) even if you never open a realtime
+// channel, since it checks for one at client construction time. This repo is
+// pinned to Node 22+ (see .nvmrc / package.json "engines" / render.yaml
+// NODE_VERSION), so this is just a safety net in case a host ignores that
+// pin and runs an older Node version. Uses a synchronous require (via
+// createRequire) rather than top-level await, since the build's esbuild step
+// bundles to CommonJS, which doesn't support top-level await.
+// ============================================================================
+if (typeof globalThis.WebSocket === "undefined") {
+  const require = createRequire(import.meta.url);
+  const { WebSocket } = require("ws");
+  // @ts-expect-error - ws's WebSocket is close enough to the DOM one for realtime-js's purposes
+  globalThis.WebSocket = WebSocket;
+}
 
 // ============================================================================
 // SUPABASE CLIENT (server-side only — uses the service role key, which
