@@ -23,6 +23,30 @@ were getting back an HTML page and choking with
 This zip has `vercel.json` removed and a Render setup added instead, since
 Render runs `server.ts` as-is with no rewrites needed.
 
+## Node version (important)
+
+`@supabase/supabase-js` pulls in `@supabase/realtime-js`, which as of recent
+versions requires a **native `WebSocket`** — only available in Node 22+.
+Render's Node buildpack defaults to an older Node version unless told
+otherwise, which crashes on boot with:
+
+```
+Error: Node.js detected but native WebSocket not found.
+```
+
+This is now fixed three ways so it can't regress:
+1. **`.nvmrc`** — pins Node to `22`.
+2. **`package.json` → `"engines"`** — requires Node `>=22.0.0`.
+3. **`render.yaml` → `NODE_VERSION=22.14.0`** — tells Render's Blueprint
+   deploy explicitly, which takes priority over buildpack auto-detection.
+4. **`server.ts`** also polyfills `globalThis.WebSocket` with the `ws`
+   package as a last-resort safety net, in case a host ever ignores all of
+   the above and runs Node < 22 anyway.
+
+You shouldn't need to touch any of this — just redeploy and it'll pick up
+Node 22 automatically. If you deploy via the `Dockerfile` instead of the
+Blueprint, it's now based on `node:22-slim` too.
+
 ## One-time setup
 
 ### 1. Push this project to GitHub
