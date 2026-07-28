@@ -41,7 +41,8 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
-
+console.log("[DEBUG] SUPABASE_URL raw value:", JSON.stringify(SUPABASE_URL));
+console.log("[DEBUG] SUPABASE_SERVICE_ROLE_KEY length:", SUPABASE_SERVICE_ROLE_KEY.length);
 // ============================================================================
 // ADMIN AUTH
 // Admin accounts now live in the `admin_users` table (managed from the Admin
