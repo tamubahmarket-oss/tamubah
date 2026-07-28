@@ -36,6 +36,111 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [success, setSuccess] = useState<string | null>(null);
   const [deleteConfirmProductId, setDeleteConfirmProductId] = useState<string | null>(null);
 
+  // Publish requests: only 1 product may be published (live in the market)
+  // per seller at a time. Extra products need admin permission to go live.
+  const [publishRequests, setPublishRequests] = useState<any[]>([]);
+  const [askAdminProductId, setAskAdminProductId] = useState<string | null>(null);
+  const [askAdminMessage, setAskAdminMessage] = useState("");
+  const [askAdminSubmitting, setAskAdminSubmitting] = useState(false);
+
+  const fetchPublishRequests = async () => {
+    try {
+      const res = await fetch(`/api/publish-requests?sellerId=${seller.id}`);
+      const data = await res.json();
+      if (res.ok) setPublishRequests(data);
+    } catch (err) {
+      console.error("Failed to fetch publish requests", err);
+    }
+  };
+
+  const getPendingRequestForProduct = (productId: string) =>
+    publishRequests.find((r) => r.productId === productId && r.status === "pending");
+
+  const publishedCount = products.filter((p) => (p as any).isPublished).length;
+
+  const handlePublishProduct = async (productId: string) => {
+    setActionLoading(productId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/products/${productId}/publish`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to publish product.");
+      }
+      setProducts(products.map(p => p.id === productId ? { ...p, ...data.product } : p));
+      setSuccess("Product is now live in the Sabah Market!");
+      onRefreshMarket();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnpublishProduct = async (productId: string) => {
+    setActionLoading(productId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/products/${productId}/unpublish`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to unpublish product.");
+      }
+      setProducts(products.map(p => p.id === productId ? { ...p, ...data.product } : p));
+      setSuccess("Product moved back to your private shop.");
+      onRefreshMarket();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleOpenAskAdmin = (productId: string) => {
+    setAskAdminProductId(productId);
+    setAskAdminMessage("");
+  };
+
+  const handleSubmitAskAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!askAdminProductId) return;
+    setAskAdminSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/publish-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id, productId: askAdminProductId, message: askAdminMessage }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send request to admin.");
+      }
+      setSuccess("Your request has been sent to the admin for review.");
+      setAskAdminProductId(null);
+      await fetchPublishRequests();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAskAdminSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishRequests();
+  }, [seller.id]);
+
   const [sellerCount, setSellerCount] = useState<number>(0);
   const [loadingSellers, setLoadingSellers] = useState<boolean>(true);
 
@@ -193,7 +298,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const fetchMyProducts = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/products");
+      const response = await fetch("/api/products?showAll=true");
       const data = await response.json();
       if (response.ok) {
         // Filter products made by this specific seller
@@ -715,6 +820,14 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
               </button>
             </div>
 
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3.5 mb-6 flex items-start gap-2.5 text-xs text-indigo-800 leading-relaxed">
+              <AlertCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Only 1 product can be published (live) in the Sabah Market at a time.</span>{" "}
+                Every other product you add stays saved in your shop. Unpublish your current live product to swap it for another, or use "Ask Admin to Publish" to request permission to show more than 1 product at once.
+              </div>
+            </div>
+
             {loading && products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <RefreshCw className="w-8 h-8 animate-spin mb-3 text-emerald-600" />
@@ -804,6 +917,51 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                           {p.isAvailable ? "Set Out of Stock" : "Set Available"}
                         </button>
                       </div>
+
+                      {/* Market Publish Status & Controls */}
+                      {(() => {
+                        const isPublished = (p as any).isPublished;
+                        const pendingRequest = getPendingRequestForProduct(p.id);
+                        return (
+                          <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${isPublished ? "bg-indigo-500" : "bg-slate-300"}`}></span>
+                              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                {isPublished ? "Published (Live)" : pendingRequest ? "Pending Admin Review" : "In Shop Only"}
+                              </span>
+                            </div>
+
+                            {isPublished ? (
+                              <button
+                                onClick={() => handleUnpublishProduct(p.id)}
+                                disabled={actionLoading === p.id}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg border bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 transition-all cursor-pointer"
+                              >
+                                Unpublish
+                              </button>
+                            ) : pendingRequest ? (
+                              <span className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                                Request Sent
+                              </span>
+                            ) : publishedCount < 1 ? (
+                              <button
+                                onClick={() => handlePublishProduct(p.id)}
+                                disabled={actionLoading === p.id}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg border bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 transition-all cursor-pointer"
+                              >
+                                Publish to Market
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenAskAdmin(p.id)}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg border bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 transition-all cursor-pointer"
+                              >
+                                Ask Admin to Publish
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -1250,6 +1408,51 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ask Admin to Publish Modal */}
+      {askAdminProductId && (
+        <div id="ask-admin-overlay" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
+            <div className="bg-gradient-to-br from-indigo-950 to-indigo-900 p-5 text-white">
+              <h3 className="font-bold text-lg">Ask Admin to Publish</h3>
+              <p className="text-indigo-200 text-xs mt-1">
+                You already have 1 product published. Request permission to publish this one too.
+              </p>
+            </div>
+            <form onSubmit={handleSubmitAskAdmin} className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Message to Admin (optional)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. It's a seasonal item and I'd like both live during festive season..."
+                  value={askAdminMessage}
+                  onChange={(e) => setAskAdminMessage(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition text-slate-800 resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAskAdminProductId(null)}
+                  disabled={askAdminSubmitting}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-55"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={askAdminSubmitting}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-1 text-xs cursor-pointer disabled:opacity-55"
+                >
+                  {askAdminSubmitting ? "Sending..." : "Send Request"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

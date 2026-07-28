@@ -41,8 +41,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
-console.log("[DEBUG] SUPABASE_URL raw value:", JSON.stringify(SUPABASE_URL));
-console.log("[DEBUG] SUPABASE_SERVICE_ROLE_KEY length:", SUPABASE_SERVICE_ROLE_KEY.length);
 // ============================================================================
 // ADMIN AUTH
 // Admin accounts now live in the `admin_users` table (managed from the Admin
@@ -182,6 +180,7 @@ interface ProductRow {
   image_url: string;
   is_available: boolean;
   is_pinned: boolean;
+  is_published: boolean;
   seller_id: string;
   created_at: string;
 }
@@ -220,10 +219,24 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
     imageUrl: p.image_url,
     isAvailable: p.is_available,
     isPinned: p.is_pinned,
+    isPublished: p.is_published,
     sellerId: p.seller_id,
     createdAt: p.created_at,
     ...extra,
   };
+}
+
+const MAX_PUBLISHED_PRODUCTS_PER_SELLER = 1;
+
+async function countPublishedProducts(sellerId: string, excludeProductId?: string) {
+  const { count, error } = await supabase
+    .from("products")
+    .select("id", { count: "exact", head: true })
+    .eq("seller_id", sellerId)
+    .eq("is_published", true)
+    .neq("id", excludeProductId || "__none__");
+  if (error) throw error;
+  return count || 0;
 }
 
 async function addAdminLog(action: string, details: string) {
@@ -544,6 +557,7 @@ async function startServer() {
       if (category && category !== "All") enriched = enriched.filter((p: any) => p.category === category);
       if (location && location !== "All") enriched = enriched.filter((p: any) => p.availableArea === location);
       if (!showAll) enriched = enriched.filter((p: any) => !!p.sellerIsApproved);
+      if (!showAll) enriched = enriched.filter((p: any) => !!p.isPublished);
 
       enriched.sort((a: any, b: any) => {
         const pinA = a.isPinned ? 1 : 0;
@@ -611,6 +625,8 @@ async function startServer() {
       if (!seller) return res.status(403).json({ error: "Unauthorized. Seller account not found." });
       if (!seller.is_approved) return res.status(403).json({ error: "Your account is pending admin approval. You cannot list new products yet." });
 
+      const publishedCount = await countPublishedProducts(sellerId);
+
       const newProduct = {
         id: "prod_" + Math.random().toString(36).substr(2, 9),
         title,
@@ -619,6 +635,11 @@ async function startServer() {
         price: parseFloat(price),
         image_url: imageUrl,
         is_available: isAvailable !== undefined ? isAvailable : true,
+        // Sellers may only have 1 published (live in the market) product at a
+        // time. If they already have one, this new product is created but
+        // stays unpublished in their shop until they free up their slot or
+        // an admin approves a publish request for it.
+        is_published: publishedCount < MAX_PUBLISHED_PRODUCTS_PER_SELLER,
         seller_id: sellerId,
       };
       const { data: inserted, error } = await supabase.from("products").insert(newProduct).select("*").single();
@@ -655,6 +676,161 @@ async function startServer() {
     } catch (err: any) {
       console.error("PATCH /api/products/:id/toggle", err);
       res.status(500).json({ error: "Failed to update product." });
+    }
+  });
+
+  // Seller publishes a product to the live public market. Only 1 published
+  // product per seller is allowed — if they're already at that limit, they
+  // must use /api/publish-requests to ask an admin for an exception.
+  app.patch("/api/products/:id/publish", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.body;
+
+      const { data: product } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
+      if (!product) return res.status(404).json({ error: "Product not found." });
+      if (product.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to update this product." });
+
+      const { data: seller } = await supabase.from("sellers").select("is_approved").eq("id", sellerId).maybeSingle();
+      if (!seller || !seller.is_approved) return res.status(403).json({ error: "Unauthorized. Your account is pending admin approval." });
+
+      if (product.is_published) {
+        return res.json({ success: true, product: productToApi(product as ProductRow) });
+      }
+
+      const publishedCount = await countPublishedProducts(sellerId, id);
+      if (publishedCount >= MAX_PUBLISHED_PRODUCTS_PER_SELLER) {
+        return res.status(409).json({
+          error: "You already have a published product in the market. Unpublish it first, or ask admin for permission to publish more than one.",
+          limitReached: true,
+        });
+      }
+
+      const { data: updated, error } = await supabase
+        .from("products")
+        .update({ is_published: true })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      res.json({ success: true, product: productToApi(updated as ProductRow) });
+    } catch (err: any) {
+      console.error("PATCH /api/products/:id/publish", err);
+      res.status(500).json({ error: "Failed to publish product." });
+    }
+  });
+
+  // Seller pulls a product back out of the market and into their private shop.
+  app.patch("/api/products/:id/unpublish", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.body;
+
+      const { data: product } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
+      if (!product) return res.status(404).json({ error: "Product not found." });
+      if (product.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to update this product." });
+
+      const { data: updated, error } = await supabase
+        .from("products")
+        .update({ is_published: false })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      res.json({ success: true, product: productToApi(updated as ProductRow) });
+    } catch (err: any) {
+      console.error("PATCH /api/products/:id/unpublish", err);
+      res.status(500).json({ error: "Failed to unpublish product." });
+    }
+  });
+
+  // Seller asks an admin for permission to publish an additional product
+  // beyond their normal 1-product limit.
+  app.post("/api/publish-requests", async (req, res) => {
+    try {
+      const { sellerId, productId, message } = req.body;
+      if (!sellerId || !productId) {
+        return res.status(400).json({ error: "sellerId and productId are required." });
+      }
+
+      const { data: product } = await supabase.from("products").select("*").eq("id", productId).maybeSingle();
+      if (!product) return res.status(404).json({ error: "Product not found." });
+      if (product.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to request publishing for this product." });
+      if (product.is_published) return res.status(400).json({ error: "This product is already published." });
+
+      const { data: existingPending } = await supabase
+        .from("publish_requests")
+        .select("id")
+        .eq("product_id", productId)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (existingPending) {
+        return res.status(409).json({ error: "You already have a pending request to publish this product." });
+      }
+
+      const newRequest = {
+        id: "pubreq_" + Math.random().toString(36).substr(2, 9),
+        seller_id: sellerId,
+        product_id: productId,
+        message: message || "",
+        status: "pending",
+      };
+      const { data: inserted, error } = await supabase.from("publish_requests").insert(newRequest).select("*").single();
+      if (error) throw error;
+
+      const { data: seller } = await supabase.from("sellers").select("business_name").eq("id", sellerId).maybeSingle();
+      await addAdminLog(
+        "publish_request_created",
+        `${seller?.business_name || "A seller"} requested permission to publish "${product.title}" (they already have a published product).`
+      );
+
+      res.json({
+        success: true,
+        request: {
+          id: inserted.id,
+          sellerId: inserted.seller_id,
+          productId: inserted.product_id,
+          message: inserted.message,
+          status: inserted.status,
+          createdAt: inserted.created_at,
+        },
+      });
+    } catch (err: any) {
+      console.error("POST /api/publish-requests", err);
+      res.status(500).json({ error: "Failed to submit publish request." });
+    }
+  });
+
+  // Seller checks the status of their own publish requests.
+  app.get("/api/publish-requests", async (req, res) => {
+    try {
+      const { sellerId } = req.query;
+      if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
+
+      const { data, error } = await supabase
+        .from("publish_requests")
+        .select("*")
+        .eq("seller_id", sellerId as string)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      res.json(
+        (data || []).map((r: any) => ({
+          id: r.id,
+          sellerId: r.seller_id,
+          productId: r.product_id,
+          message: r.message,
+          adminNote: r.admin_note,
+          status: r.status,
+          createdAt: r.created_at,
+          resolvedAt: r.resolved_at,
+        }))
+      );
+    } catch (err: any) {
+      console.error("GET /api/publish-requests", err);
+      res.status(500).json({ error: "Failed to load publish requests." });
     }
   });
 
@@ -1199,6 +1375,107 @@ async function startServer() {
     } catch (err: any) {
       console.error("DELETE /api/admin/products/:id", err);
       res.status(500).json({ error: "Failed to delete product." });
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // ADMIN: publish requests — sellers asking to publish more than 1 product
+  // ---------------------------------------------------------------------
+  app.get("/api/admin/publish-requests", requireAdminAuth, async (req, res) => {
+    try {
+      const statusFilter = (req.query.status as string) || "all";
+
+      let query = supabase.from("publish_requests").select("*").order("created_at", { ascending: false });
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+      const { data: requests, error } = await query;
+      if (error) throw error;
+
+      const sellerIds = [...new Set((requests || []).map((r: any) => r.seller_id))];
+      const productIds = [...new Set((requests || []).map((r: any) => r.product_id))];
+
+      const [{ data: sellers }, { data: products }] = await Promise.all([
+        sellerIds.length ? supabase.from("sellers").select("id, business_name, owner_name").in("id", sellerIds) : Promise.resolve({ data: [] }),
+        productIds.length ? supabase.from("products").select("id, title, image_url, price").in("id", productIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const sellerById = new Map((sellers || []).map((s: any) => [s.id, s]));
+      const productById = new Map((products || []).map((p: any) => [p.id, p]));
+
+      res.json(
+        (requests || []).map((r: any) => ({
+          id: r.id,
+          sellerId: r.seller_id,
+          productId: r.product_id,
+          message: r.message,
+          adminNote: r.admin_note,
+          status: r.status,
+          createdAt: r.created_at,
+          resolvedAt: r.resolved_at,
+          businessName: sellerById.get(r.seller_id)?.business_name || "Unknown Seller",
+          sellerName: sellerById.get(r.seller_id)?.owner_name || "",
+          productTitle: productById.get(r.product_id)?.title || "Deleted product",
+          productImageUrl: productById.get(r.product_id)?.image_url || "",
+          productPrice: productById.get(r.product_id)?.price || 0,
+        }))
+      );
+    } catch (err: any) {
+      console.error("GET /api/admin/publish-requests", err);
+      res.status(500).json({ error: "Failed to load publish requests." });
+    }
+  });
+
+  app.post("/api/admin/publish-requests/:id/approve", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data: request } = await supabase.from("publish_requests").select("*").eq("id", id).maybeSingle();
+      if (!request) return res.status(404).json({ error: "Publish request not found." });
+      if (request.status !== "pending") return res.status(400).json({ error: "This request has already been resolved." });
+
+      const { data: product, error: productErr } = await supabase
+        .from("products")
+        .update({ is_published: true })
+        .eq("id", request.product_id)
+        .select("*")
+        .maybeSingle();
+      if (productErr) throw productErr;
+
+      const { data: updatedRequest, error } = await supabase
+        .from("publish_requests")
+        .update({ status: "approved", resolved_at: new Date().toISOString() })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      await addAdminLog("publish_request_approved", `Approved publishing "${product?.title || request.product_id}" beyond the normal 1-product limit.`);
+      res.json({ success: true, request: updatedRequest, product: product ? productToApi(product as ProductRow) : null });
+    } catch (err: any) {
+      console.error("POST /api/admin/publish-requests/:id/approve", err);
+      res.status(500).json({ error: "Failed to approve publish request." });
+    }
+  });
+
+  app.post("/api/admin/publish-requests/:id/reject", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { adminNote } = req.body;
+      const { data: request } = await supabase.from("publish_requests").select("*").eq("id", id).maybeSingle();
+      if (!request) return res.status(404).json({ error: "Publish request not found." });
+      if (request.status !== "pending") return res.status(400).json({ error: "This request has already been resolved." });
+
+      const { data: updatedRequest, error } = await supabase
+        .from("publish_requests")
+        .update({ status: "rejected", admin_note: adminNote || "", resolved_at: new Date().toISOString() })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      await addAdminLog("publish_request_rejected", `Rejected a seller's request to publish an additional product.`);
+      res.json({ success: true, request: updatedRequest });
+    } catch (err: any) {
+      console.error("POST /api/admin/publish-requests/:id/reject", err);
+      res.status(500).json({ error: "Failed to reject publish request." });
     }
   });
 

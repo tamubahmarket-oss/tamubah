@@ -661,15 +661,15 @@ export default function MarketGrid({
           </div>
 
           {/* Product cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
             {filteredProducts.map((p) => (
               <div
                 key={p.id}
                 id={`market-product-card-${p.id}`}
-                className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full relative"
+                className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative"
               >
                 {/* Image Section */}
-                <div className="h-52 overflow-hidden relative bg-slate-50 shrink-0">
+                <div className="h-28 sm:h-32 overflow-hidden relative bg-slate-50 shrink-0">
                   <img
                     src={p.imageUrl}
                     alt={p.title}
@@ -678,15 +678,15 @@ export default function MarketGrid({
                   />
 
                   {/* Category Chip overlay */}
-                  <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
-                    <span className="bg-slate-900/85 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1">
+                    <span className="bg-slate-900/85 backdrop-blur-md text-white text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider line-clamp-1 max-w-[90px]">
                       {p.category}
                     </span>
                   </div>
 
                   {/* Availability Badge overlay */}
-                  <div className="absolute top-4 right-4 z-10">
-                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full shadow-sm ${
+                  <div className="absolute top-1.5 right-1.5 z-10">
+                    <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
                       p.isAvailable 
                         ? "bg-emerald-500 text-white" 
                         : "bg-slate-600 text-slate-100"
@@ -697,127 +697,79 @@ export default function MarketGrid({
                 </div>
 
                 {/* Card Info Content */}
-                <div className="p-5 flex flex-col flex-grow">
+                <div className="p-2.5 flex flex-col flex-grow">
                   {/* Price and Title */}
-                  <div className="flex justify-between items-start gap-3 mb-2">
-                    <h3 className="font-bold text-slate-900 text-base group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2">
-                      {p.title}
-                    </h3>
-                    <span className="text-base font-extrabold text-slate-900 shrink-0 bg-amber-50 text-amber-950 px-2.5 py-0.5 rounded-lg border border-amber-200">
-                      RM {p.price.toFixed(2)}
-                    </span>
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-slate-500 text-xs leading-relaxed line-clamp-3 mb-5 flex-grow">
-                    {p.description}
-                  </p>
+                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 mb-1">
+                    {p.title}
+                  </h3>
+                  <span className="text-xs font-extrabold text-slate-900 shrink-0 bg-amber-50 text-amber-950 px-1.5 py-0.5 rounded-md border border-amber-200 w-fit mb-2">
+                    RM {p.price.toFixed(2)}
+                  </span>
 
                   {/* Seller Brand & Info */}
-                  <div className="border-t border-slate-50 pt-4 flex flex-col gap-2.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenSellerProfile(p)}
-                        title={`Click to view ${p.businessName} full business profile`}
-                        className="flex items-center gap-1.5 cursor-pointer text-left group/btn hover:opacity-90"
-                      >
-                        <div className="w-6 h-6 rounded-lg overflow-hidden bg-emerald-50 border border-emerald-100/50 flex items-center justify-center text-[10px] font-bold text-emerald-800 shrink-0">
-                          {p.sellerLogoUrl ? (
-                            <img src={p.sellerLogoUrl} alt={p.businessName} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                          ) : (
-                            p.businessName.charAt(0)
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-800 group-hover/btn:text-emerald-700 transition-colors line-clamp-1 text-xs underline decoration-dotted decoration-emerald-500/40 hover:decoration-emerald-600 underline-offset-2 flex items-center gap-0.5">
-                            {p.businessName}
-                            {p.sellerVerificationTier === "Gold" ? (
-                              <ShieldCheck className="w-3.5 h-3.5 shrink-0 ml-0.5" style={{ color: "#d4af37" }} title="Exclusive Gold Licensed Seller" />
-                            ) : p.sellerVerificationTier === "Silver" ? (
-                              <ShieldCheck className="w-3.5 h-3.5 shrink-0 ml-0.5" style={{ color: "#c0c0c0" }} title="Exclusive Silver Licensed Seller" />
-                            ) : p.sellerVerificationTier === "Bronze" ? (
-                              <ShieldCheck className="w-3.5 h-3.5 shrink-0 ml-0.5" style={{ color: "#cd7f32" }} title="Exclusive Bronze Licensed Seller" />
-                            ) : null}
-                            <ArrowUpRight className="w-2.5 h-2.5 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-0.5 text-[9px] flex-wrap">
-                            <span className="text-slate-400 font-medium">By {p.sellerName}</span>
-                            <span className="text-slate-300">•</span>
-                            {p.sellerAverageRating && p.sellerAverageRating > 0 ? (
-                              <span className="text-amber-800 bg-amber-50 border border-amber-200/40 px-1 rounded font-bold flex items-center gap-0.5">
-                                ⭐ {p.sellerAverageRating.toFixed(1)} ({p.sellerReviewCount})
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic bg-slate-50 border border-slate-100 px-1 rounded">No ratings</span>
-                            )}
-                            <span className="text-slate-300">•</span>
-                            {p.sellerVerificationTier === "Gold" ? (
-                              <span className="font-extrabold flex items-center gap-0.5 text-amber-700" title="Gold Licensed Merchant">
-                                <ShieldCheck className="w-2.5 h-2.5" style={{ color: "#d4af37" }} /> Gold
-                              </span>
-                            ) : p.sellerVerificationTier === "Silver" ? (
-                              <span className="font-extrabold flex items-center gap-0.5 text-slate-500" title="Silver Licensed Merchant">
-                                <ShieldCheck className="w-2.5 h-2.5" style={{ color: "#c0c0c0" }} /> Silver
-                              </span>
-                            ) : p.sellerVerificationTier === "Bronze" ? (
-                              <span className="font-bold flex items-center gap-0.5 text-amber-900" title="Bronze Licensed Merchant">
-                                <ShieldCheck className="w-2.5 h-2.5" style={{ color: "#cd7f32" }} /> Bronze
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 font-medium" title="Standard unregistered home cook">
-                                Home Cook
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                      
-                      {/* Location in Sabah */}
-                      <span className="flex items-center gap-1 bg-slate-50 text-slate-600 px-2.5 py-1 rounded-full text-[11px] font-medium shrink-0 border border-slate-100">
-                        <MapPin className="w-3 h-3 text-emerald-600" />
-                        {p.availableArea}
+                  <div className="border-t border-slate-50 pt-2 flex flex-col gap-1.5 mt-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSellerProfile(p)}
+                      title={`Click to view ${p.businessName} full business profile`}
+                      className="flex items-center gap-1 cursor-pointer text-left group/btn hover:opacity-90"
+                    >
+                      <div className="w-4 h-4 rounded overflow-hidden bg-emerald-50 border border-emerald-100/50 flex items-center justify-center text-[7px] font-bold text-emerald-800 shrink-0">
+                        {p.sellerLogoUrl ? (
+                          <img src={p.sellerLogoUrl} alt={p.businessName} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                        ) : (
+                          p.businessName.charAt(0)
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-700 group-hover/btn:text-emerald-700 transition-colors line-clamp-1 text-[9px] flex items-center gap-0.5 min-w-0">
+                        {p.businessName}
+                        {p.sellerVerificationTier === "Gold" ? (
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#d4af37" }} title="Gold Licensed Seller" />
+                        ) : p.sellerVerificationTier === "Silver" ? (
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#c0c0c0" }} title="Silver Licensed Seller" />
+                        ) : p.sellerVerificationTier === "Bronze" ? (
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#cd7f32" }} title="Bronze Licensed Seller" />
+                        ) : null}
                       </span>
-                    </div>
+                    </button>
 
-                    {/* Physical delivery details */}
-                    <p className="text-[10px] text-slate-400 leading-snug font-sans bg-slate-50/50 p-2 rounded-xl line-clamp-1">
-                      <span className="font-semibold text-slate-500">Pick-up / Delivery Base:</span> {p.address}
-                    </p>
+                    <span className="flex items-center gap-0.5 text-slate-500 text-[8px] font-medium">
+                      <MapPin className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                      <span className="line-clamp-1">{p.availableArea}</span>
+                    </span>
 
                     {/* Report Warnings if seller has been flagged */}
                     {p.reportCount && p.reportCount > 0 ? (
-                      <div className="bg-rose-50 border border-rose-100 text-rose-800 rounded-xl p-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="bg-rose-50 border border-rose-100 text-rose-800 rounded-lg p-1.5 flex items-start gap-1 text-[8px] leading-snug">
+                        <AlertTriangle className="w-2.5 h-2.5 text-rose-600 shrink-0 mt-0.5" />
                         <div>
-                          <span className="font-bold">Caution:</span> This seller has been reported <span className="font-extrabold text-rose-700">{p.reportCount} {p.reportCount === 1 ? "time" : "times"}</span> by buyers. Confirm stock and details before payment.
+                          Reported <span className="font-extrabold text-rose-700">{p.reportCount}x</span>
                         </div>
                       </div>
                     ) : null}
 
                     {/* WhatsApp Contact & Report Actions */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <a
                         id={`whatsapp-link-${p.id}`}
                         href={getWhatsAppLink(p)}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => handleTrackContactClick(p.sellerId)}
-                        className={`flex-grow py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all border ${
+                        className={`flex-grow py-1.5 px-2 rounded-lg font-bold text-[9px] flex items-center justify-center gap-1 transition-all border ${
                           p.isAvailable
                             ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 hover:shadow-md cursor-pointer"
                             : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed pointer-events-none"
                         }`}
                       >
-                        <Phone className="w-4 h-4 shrink-0" />
+                        <Phone className="w-3 h-3 shrink-0" />
                         {p.isAvailable ? t("order_whatsapp") : t("sold_out")}
-                        <ArrowUpRight className="w-3 h-3 shrink-0" />
                       </a>
 
                       <button
                         type="button"
                         onClick={() => handleShareProduct(p)}
-                        className={`px-3 py-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                        className={`px-1.5 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
                           copiedProductId === p.id
                             ? "bg-emerald-50 border-emerald-200 text-emerald-600"
                             : "border-slate-200 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"
@@ -825,19 +777,19 @@ export default function MarketGrid({
                         title={copiedProductId === p.id ? "Link Copied!" : "Share this product with friends"}
                       >
                         {copiedProductId === p.id ? (
-                          <Check className="w-4 h-4 shrink-0" />
+                          <Check className="w-3 h-3 shrink-0" />
                         ) : (
-                          <Share2 className="w-4 h-4 shrink-0" />
+                          <Share2 className="w-3 h-3 shrink-0" />
                         )}
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleOpenReportModal(p)}
-                        className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                        className="px-1.5 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer flex items-center justify-center shrink-0"
                         title="Report scam or fraudulent behavior"
                       >
-                        <Flag className="w-4 h-4 shrink-0" />
+                        <Flag className="w-3 h-3 shrink-0" />
                       </button>
                     </div>
                   </div>

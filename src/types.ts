@@ -27,6 +27,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   isAvailable: boolean;
+  isPublished?: boolean;
   sellerId: string;
   createdAt: string;
   // Enriched fields from server join:
@@ -45,6 +46,23 @@ export interface Product {
   reportCount?: number;
   sellerAverageRating?: number;
   sellerReviewCount?: number;
+}
+
+export interface PublishRequest {
+  id: string;
+  sellerId: string;
+  productId: string;
+  message: string;
+  adminNote?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  resolvedAt?: string;
+  // Enriched fields (admin view only)
+  businessName?: string;
+  sellerName?: string;
+  productTitle?: string;
+  productImageUrl?: string;
+  productPrice?: number;
 }
 
 export interface Review {
