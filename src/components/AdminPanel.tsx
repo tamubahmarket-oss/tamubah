@@ -46,7 +46,7 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "logs" | "admins" | "yaml">("metrics");
+  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "publish" | "logs" | "admins" | "yaml">("metrics");
   
   // Search and filter states
   const [sellerSearch, setSellerSearch] = useState("");
@@ -83,6 +83,80 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [yamlEditorContent, setYamlEditorContent] = useState<string>("");
+
+  // --- Publish requests (sellers asking to publish more than 1 product) ---
+  const [publishRequests, setPublishRequests] = useState<any[]>([]);
+  const [publishRequestFilter, setPublishRequestFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [pendingPublishCount, setPendingPublishCount] = useState<number>(0);
+
+  const fetchPublishRequests = async (statusFilter = publishRequestFilter) => {
+    try {
+      const res = await fetch(`/api/admin/publish-requests?status=${statusFilter}`);
+      const data = await res.json();
+      if (res.ok) setPublishRequests(data);
+    } catch (error) {
+      console.error("Failed to load publish requests", error);
+    }
+  };
+
+  const fetchPendingPublishCount = async () => {
+    try {
+      const res = await fetch(`/api/admin/publish-requests?status=pending`);
+      const data = await res.json();
+      if (res.ok) setPendingPublishCount(data.length);
+    } catch (error) {
+      console.error("Failed to load pending publish request count", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishRequests(publishRequestFilter);
+    fetchPendingPublishCount();
+  }, [publishRequestFilter]);
+
+  useEffect(() => {
+    if (activeTab === "publish") fetchPublishRequests(publishRequestFilter);
+  }, [activeTab]);
+
+  const handleApprovePublishRequest = async (requestId: string) => {
+    try {
+      setActionLoading(`pubreq-${requestId}`);
+      const res = await fetch(`/api/admin/publish-requests/${requestId}/approve`, { method: "POST" });
+      if (res.ok) {
+        await fetchPublishRequests(publishRequestFilter);
+        await fetchPendingPublishCount();
+        await fetchAdminData();
+        onRefreshMarket();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to approve publish request.");
+      }
+    } catch (error) {
+      console.error("Error approving publish request", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectPublishRequest = async (requestId: string) => {
+    const confirmed = window.confirm("Reject this seller's request to publish an additional product?");
+    if (!confirmed) return;
+    try {
+      setActionLoading(`pubreq-${requestId}`);
+      const res = await fetch(`/api/admin/publish-requests/${requestId}/reject`, { method: "POST" });
+      if (res.ok) {
+        await fetchPublishRequests(publishRequestFilter);
+        await fetchPendingPublishCount();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to reject publish request.");
+      }
+    } catch (error) {
+      console.error("Error rejecting publish request", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const fetchSellersData = async () => {
     try {
@@ -687,6 +761,23 @@ spec:
           <span className="bg-[#2d3033] text-[#9aa0a6] text-[10px] px-2 py-0.5 rounded-full font-bold">
             {products.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("publish")}
+          className={`py-3.5 px-3 font-semibold text-[13px] tracking-wide transition-all whitespace-nowrap cursor-pointer border-b-2 flex items-center gap-1.5 ${
+            activeTab === "publish"
+              ? "border-[#8ab4f8] text-[#8ab4f8] font-bold"
+              : "border-transparent text-[#9aa0a6] hover:text-[#f1f3f4]"
+          }`}
+        >
+          <span>PUBLISH REQUESTS</span>
+          {pendingPublishCount > 0 && (
+            <span className="bg-amber-500/10 text-[#fdd663] text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-[#ffe088]/20">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+              {pendingPublishCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -1487,6 +1578,15 @@ spec:
                                   <div className="max-w-xs">
                                     <h4 className="font-bold text-[#e8eaed] text-xs flex items-center gap-1.5">
                                       {product.title}
+                                      {(product as any).isPublished ? (
+                                        <span className="bg-[#81c995]/10 text-[#81c995] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[#81c995]/30">
+                                          Published
+                                        </span>
+                                      ) : (
+                                        <span className="bg-[#5f6368]/20 text-[#9aa0a6] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[#5f6368]/30">
+                                          Unpublished
+                                        </span>
+                                      )}
                                       {isProductPinned && (
                                         <span className="bg-[#ffeebb]/10 text-[#fdd663] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[#fdd663]/20 flex items-center gap-0.5">
                                           <Star className="w-2.5 h-2.5 fill-amber-500 stroke-amber-500" /> Featured (Top)
@@ -1590,6 +1690,117 @@ spec:
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB: PUBLISH REQUESTS — sellers asking to publish beyond the 1-product limit */}
+            {activeTab === "publish" && (
+              <div className="bg-[#202124] border border-[#3c4043] rounded-md shadow-md animate-in fade-in duration-200">
+
+                <div className="bg-[#2a2b2f] px-4 py-3 border-b border-[#3c4043] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-[#e8eaed] font-bold text-sm">Publish Permission Requests</h3>
+                    <p className="text-[10px] text-[#9aa0a6] mt-0.5">Sellers may only publish 1 live product by default. Approve to let them publish an extra one.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <select
+                      value={publishRequestFilter}
+                      onChange={(e: any) => setPublishRequestFilter(e.target.value)}
+                      className="border border-[#5f6368] text-xs rounded bg-[#202124] p-1.5 focus:outline-none focus:border-[#8ab4f8] font-medium text-[#e8eaed]"
+                    >
+                      <option value="pending">Pending Review</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="all">All Requests</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#3c4043] bg-[#202124] text-[#9aa0a6] font-bold uppercase tracking-wider text-[9px]">
+                        <th className="py-3 px-4">Requested Product</th>
+                        <th className="py-3 px-4">Seller</th>
+                        <th className="py-3 px-4">Message</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#3c4043] text-[#bdc1c6]">
+                      {publishRequests.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400 italic">
+                            No {publishRequestFilter !== "all" ? publishRequestFilter : ""} publish requests found.
+                          </td>
+                        </tr>
+                      ) : (
+                        publishRequests.map((request) => (
+                          <tr key={request.id} className="hover:bg-[#2d3033] transition-colors font-mono text-[11px]">
+                            <td className="py-4 px-4 font-sans">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded bg-[#2a2b2f] border border-[#3c4043] overflow-hidden shrink-0">
+                                  {request.productImageUrl ? (
+                                    <img src={request.productImageUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : null}
+                                </div>
+                                <div className="max-w-xs">
+                                  <h4 className="font-bold text-[#e8eaed] text-xs">{request.productTitle}</h4>
+                                  <p className="text-[10px] text-slate-400">RM {Number(request.productPrice || 0).toFixed(2)}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 font-sans">
+                              <span className="font-bold text-[#e8eaed] text-xs block">{request.businessName}</span>
+                              <span className="text-[10px] text-slate-400 block font-mono">owner: {request.sellerName}</span>
+                            </td>
+                            <td className="py-4 px-4 font-sans max-w-xs">
+                              <span className="text-[10px] text-slate-300 leading-relaxed line-clamp-3">
+                                {request.message || <span className="italic text-slate-500">No message provided</span>}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-sans border uppercase ${
+                                request.status === "pending"
+                                  ? "bg-[#fdd663]/10 text-[#fdd663] border-[#fdd663]/30"
+                                  : request.status === "approved"
+                                  ? "bg-[#81c995]/10 text-[#81c995] border-[#81c995]/30"
+                                  : "bg-[#f28b82]/10 text-[#f28b82] border-[#f28b82]/30"
+                              }`}>
+                                {request.status}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right font-sans">
+                              {request.status === "pending" ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleApprovePublishRequest(request.id)}
+                                    disabled={actionLoading === `pubreq-${request.id}`}
+                                    className="px-2.5 py-1.5 rounded text-[10px] font-bold uppercase transition-all tracking-wide bg-[#81c995]/10 text-[#81c995] border border-[#81c995]/30 hover:bg-[#81c995]/20 disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {actionLoading === `pubreq-${request.id}` ? "..." : "Approve"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectPublishRequest(request.id)}
+                                    disabled={actionLoading === `pubreq-${request.id}`}
+                                    className="px-2.5 py-1.5 rounded text-[10px] font-bold uppercase transition-all tracking-wide bg-[#f28b82]/10 text-[#f28b82] border border-[#f28b82]/30 hover:bg-[#f28b82]/20 disabled:opacity-50 cursor-pointer"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 italic">
+                                  {request.resolvedAt ? new Date(request.resolvedAt).toLocaleDateString("en-MY") : "—"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

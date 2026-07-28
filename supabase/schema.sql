@@ -56,13 +56,44 @@ create table if not exists products (
   image_url     text not null,
   is_available  boolean not null default true,
   is_pinned     boolean not null default false,
+  -- Whether this listing is actually shown in the public market. Each seller
+  -- may only have ONE published product at a time; every other product they
+  -- create just sits in their private shop dashboard until they either
+  -- unpublish their current live product, or an admin grants an exception
+  -- via the publish_requests table below.
+  is_published  boolean not null default true,
   seller_id     text not null references sellers(id) on delete cascade,
   created_at    timestamptz not null default now()
 );
 
+-- Safe to re-run on an existing database: adds the column if this schema
+-- was applied before is_published existed. Defaults to true so existing
+-- live listings stay visible after the upgrade.
+alter table products add column if not exists is_published boolean not null default true;
+
 create index if not exists idx_products_seller_id on products(seller_id);
 create index if not exists idx_products_category on products(category);
 create index if not exists idx_products_created_at on products(created_at desc);
+create index if not exists idx_products_is_published on products(is_published);
+
+-- ---------------------------------------------------------------------------
+-- publish_requests — a seller who already has 1 published product but wants
+-- to publish another must ask an admin for permission. Each row is one
+-- seller's request to publish one specific product.
+-- ---------------------------------------------------------------------------
+create table if not exists publish_requests (
+  id            text primary key,
+  seller_id     text not null references sellers(id) on delete cascade,
+  product_id    text not null references products(id) on delete cascade,
+  message       text default '',
+  admin_note    text default '',
+  status        text not null default 'pending' check (status in ('pending','approved','rejected')),
+  created_at    timestamptz not null default now(),
+  resolved_at   timestamptz
+);
+
+create index if not exists idx_publish_requests_seller_id on publish_requests(seller_id);
+create index if not exists idx_publish_requests_status on publish_requests(status);
 
 -- ---------------------------------------------------------------------------
 -- reviews
@@ -159,3 +190,4 @@ alter table admin_users     enable row level security;
 alter table admin_sessions  enable row level security;
 alter table admin_logs      enable row level security;
 alter table app_stats       enable row level security;
+alter table publish_requests enable row level security;
