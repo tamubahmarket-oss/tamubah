@@ -9,7 +9,7 @@ import React from "react";
 
 type CategorySvgIcon = React.FC<{ className?: string }>;
 
-const BADGE_COLORS: Record<string, string> = {
+export const BADGE_COLORS: Record<string, string> = {
   All: "#64748b",
   "Food&Tamu": "#f59e0b",
   "Bundle&Fashion": "#ec4899",
@@ -19,6 +19,28 @@ const BADGE_COLORS: Record<string, string> = {
   "Services&Runners": "#a855f7",
   Others: "#64748b",
 };
+
+/** Solid hex color for a category (used for accent bars, borders, etc.) */
+export function getCategoryColor(category: string): string {
+  return BADGE_COLORS[category] || BADGE_COLORS.Others;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * A soft, low-opacity tint of the category's color — for card backgrounds,
+ * so the market grid subtly color-codes each listing by category without
+ * shouting over the product photo.
+ */
+export function getCategoryTint(category: string, alpha = 0.07): string {
+  return hexToRgba(getCategoryColor(category), alpha);
+}
 
 function Badge({ color, className, children }: { color: string; className?: string; children: React.ReactNode }) {
   return (
