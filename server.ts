@@ -168,6 +168,10 @@ interface SellerRow {
   verification_tier: "None" | "Bronze" | "Silver" | "Gold";
   show_phone_publicly: boolean;
   contact_count: number;
+  plan_status: "pending" | "founding" | "trial" | "paid" | "expired";
+  approved_at: string | null;
+  trial_ends_at: string | null;
+  next_payment_due: string | null;
   created_at: string;
 }
 
@@ -205,6 +209,10 @@ function sellerToApi(s: SellerRow, extra: Record<string, any> = {}) {
     verificationTier: s.verification_tier || "None",
     showPhonePublicly: s.show_phone_publicly,
     contactCount: s.contact_count || 0,
+    planStatus: s.plan_status || "pending",
+    approvedAt: s.approved_at || undefined,
+    trialEndsAt: s.trial_ends_at || undefined,
+    nextPaymentDue: s.next_payment_due || undefined,
     ...extra,
   };
 }
@@ -227,6 +235,13 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
 }
 
 const MAX_PUBLISHED_PRODUCTS_PER_SELLER = 1;
+
+// Community-empowerment rollout: the first 100 approved sellers stay free
+// forever ("founding"); every seller after that gets a 1-month free trial
+// before they're expected to start paying RM20/month.
+const FOUNDING_SELLER_LIMIT = 100;
+const TRIAL_LENGTH_DAYS = 30;
+const MONTHLY_SUBSCRIPTION_RM = 20;
 
 async function countPublishedProducts(sellerId: string, excludeProductId?: string) {
   const { count, error } = await supabase
@@ -312,6 +327,13 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+  // Lightweight health check — no DB calls. Intended for uptime pingers
+  // (e.g. UptimeRobot / GitHub Actions) to keep the free-tier instance from
+  // spinning down, and for basic "is it alive" checks.
+  app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   // ---------------------------------------------------------------------
   // PUBLIC: Sellers
@@ -1355,7 +1377,9 @@ async function startServer() {
     try {
       const stats = await getStats();
       const { data: logs } = await supabase.from("admin_logs").select("*").order("created_at", { ascending: false }).limit(200);
-      const { data: sellers } = await supabase.from("sellers").select("id, business_name");
+      const { data: sellers } = await supabase
+        .from("sellers")
+        .select("id, business_name, plan_status, trial_ends_at, next_payment_due");
       const { data: products } = await supabase.from("products").select("id");
       const { data: reports } = await supabase.from("reports").select("*").order("created_at", { ascending: false });
 
@@ -1378,6 +1402,18 @@ async function startServer() {
         productTitle: productsById.get(r.product_id)?.title || "Entire Store",
       }));
 
+      const now = new Date();
+      const planCounts = { pending: 0, founding: 0, trial: 0, paid: 0, expired: 0 };
+      let trialsEndingSoon = 0; // trial sellers with < 7 days left
+      (sellers || []).forEach((s: any) => {
+        const status = (s.plan_status || "pending") as keyof typeof planCounts;
+        if (planCounts[status] !== undefined) planCounts[status]++;
+        if (status === "trial" && s.trial_ends_at) {
+          const daysLeft = (new Date(s.trial_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysLeft <= 7) trialsEndingSoon++;
+        }
+      });
+
       res.json({
         visitorCount: (stats as any).visitor_count || 0,
         loginSuccessCount: (stats as any).login_success_count || 0,
@@ -1388,6 +1424,18 @@ async function startServer() {
         totalProducts: (products || []).length,
         totalReports: (reports || []).length,
         reports: enrichedReports,
+        planSummary: {
+          founding: planCounts.founding,
+          foundingLimit: FOUNDING_SELLER_LIMIT,
+          foundingSlotsLeft: Math.max(0, FOUNDING_SELLER_LIMIT - planCounts.founding),
+          trial: planCounts.trial,
+          trialsEndingSoon,
+          paid: planCounts.paid,
+          expired: planCounts.expired,
+          pending: planCounts.pending,
+          monthlyFeeRM: MONTHLY_SUBSCRIPTION_RM,
+          estimatedMonthlyRevenueRM: planCounts.paid * MONTHLY_SUBSCRIPTION_RM,
+        },
       });
     } catch (err: any) {
       console.error("GET /api/admin/stats", err);
@@ -1408,6 +1456,25 @@ async function startServer() {
 
       const update: Record<string, any> = {};
       if (isApproved !== undefined) update.is_approved = !!isApproved;
+
+      // First time this seller is approved, slot them into the plan:
+      // founding (free forever) if we're still under the founding cap,
+      // otherwise a 1-month trial that leads into the paid plan.
+      if (isApproved === true && seller.plan_status === "pending") {
+        const { count: foundingCount } = await supabase
+          .from("sellers")
+          .select("id", { count: "exact", head: true })
+          .eq("plan_status", "founding");
+
+        const now = new Date();
+        update.approved_at = now.toISOString();
+        if ((foundingCount || 0) < FOUNDING_SELLER_LIMIT) {
+          update.plan_status = "founding";
+        } else {
+          update.plan_status = "trial";
+          update.trial_ends_at = new Date(now.getTime() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        }
+      }
 
       if (verificationTier !== undefined) {
         update.verification_tier = verificationTier;
@@ -1520,6 +1587,39 @@ async function startServer() {
     } catch (err: any) {
       console.error("DELETE /api/admin/products/:id", err);
       res.status(500).json({ error: "Failed to delete product." });
+    }
+  });
+
+  // Admin manually updates a seller's plan status — mainly used to mark a
+  // trial seller as "paid" after receiving their RM20/month (e.g. bank
+  // transfer), or "expired" if a trial/payment lapsed.
+  app.post("/api/admin/sellers/:id/plan", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { planStatus, nextPaymentDue } = req.body;
+      const allowed = ["pending", "founding", "trial", "paid", "expired"];
+      if (!allowed.includes(planStatus)) {
+        return res.status(400).json({ error: `planStatus must be one of: ${allowed.join(", ")}` });
+      }
+
+      const { data: seller } = await supabase.from("sellers").select("*").eq("id", id).maybeSingle();
+      if (!seller) return res.status(404).json({ error: "Seller not found." });
+
+      const update: Record<string, any> = { plan_status: planStatus };
+      if (planStatus === "paid") {
+        update.next_payment_due = nextPaymentDue
+          ? new Date(nextPaymentDue).toISOString()
+          : new Date(Date.now() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      const { data: updated, error } = await supabase.from("sellers").update(update).eq("id", id).select("*").single();
+      if (error) throw error;
+
+      await addAdminLog("seller_plan_changed", `Set plan status for ${updated.business_name} to "${planStatus}".`);
+      res.json({ success: true, seller: sellerToApi(updated as SellerRow) });
+    } catch (err: any) {
+      console.error("POST /api/admin/sellers/:id/plan", err);
+      res.status(500).json({ error: "Failed to update seller plan." });
     }
   });
 
