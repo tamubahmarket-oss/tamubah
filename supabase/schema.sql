@@ -37,8 +37,25 @@ create table if not exists sellers (
                           check (verification_tier in ('None','Bronze','Silver','Gold')),
   show_phone_publicly   boolean not null default true,
   contact_count         integer not null default 0,
+  -- Plan tracking for the community-empowerment rollout: the first 100
+  -- approved sellers are lifetime-free "founding" sellers; everyone after
+  -- gets a 1-month free trial, then is expected to pay RM20/month.
+  -- Payment itself is handled manually (e.g. bank transfer), so 'paid' /
+  -- 'expired' are set by an admin — 'founding' / 'trial' are assigned
+  -- automatically the first time a seller is approved.
+  plan_status           text not null default 'pending'
+                          check (plan_status in ('pending','founding','trial','paid','expired')),
+  approved_at           timestamptz,
+  trial_ends_at         timestamptz,
+  next_payment_due      timestamptz,
   created_at            timestamptz not null default now()
 );
+
+-- Safe to re-run on an existing database.
+alter table sellers add column if not exists plan_status text not null default 'pending';
+alter table sellers add column if not exists approved_at timestamptz;
+alter table sellers add column if not exists trial_ends_at timestamptz;
+alter table sellers add column if not exists next_payment_due timestamptz;
 
 create index if not exists idx_sellers_location on sellers(location);
 create index if not exists idx_sellers_category on sellers(category);

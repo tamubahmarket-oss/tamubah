@@ -5,7 +5,7 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Settings, Play, Server, FileText,
   ChevronDown, HelpCircle, Bell, User, MoreVertical, Menu, ShieldAlert,
-  Trash2
+  Trash2, Wallet
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -35,6 +35,18 @@ interface AdminStats {
     productTitle: string;
     status?: string;
   }[];
+  planSummary?: {
+    founding: number;
+    foundingLimit: number;
+    foundingSlotsLeft: number;
+    trial: number;
+    trialsEndingSoon: number;
+    paid: number;
+    expired: number;
+    pending: number;
+    monthlyFeeRM: number;
+    estimatedMonthlyRevenueRM: number;
+  };
 }
 
 interface AdminPanelProps {
@@ -326,6 +338,27 @@ spec:
       }
     } catch (error) {
       console.error("Error updating verification tier", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateSellerPlan = async (sellerId: string, planStatus: "founding" | "trial" | "paid" | "expired") => {
+    try {
+      setActionLoading(`plan-${sellerId}`);
+      const res = await fetch(`/api/admin/sellers/${sellerId}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planStatus })
+      });
+      if (res.ok) {
+        await fetchAdminData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to update plan status.");
+      }
+    } catch (error) {
+      console.error("Error updating seller plan", error);
     } finally {
       setActionLoading(null);
     }
@@ -834,7 +867,58 @@ spec:
             {/* TAB 1: METRICS / STATS COMPARISON */}
             {activeTab === "metrics" && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                
+
+                {/* Seller Plan / Revenue Tracker */}
+                {stats?.planSummary && (
+                  <div className="bg-[#202124] border border-[#3c4043] rounded-md shadow-md p-5">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                      <div>
+                        <h3 className="text-[#e8eaed] font-bold text-sm flex items-center gap-2">
+                          <Wallet className="w-4 h-4 text-[#81c995]" />
+                          Seller Plans &amp; Revenue
+                        </h3>
+                        <p className="text-[10px] text-[#9aa0a6] mt-0.5">
+                          First {stats.planSummary.foundingLimit} sellers are free forever. After that: {stats.planSummary.trial > 0 || stats.planSummary.paid > 0 ? "1-month trial, then " : ""}RM{stats.planSummary.monthlyFeeRM}/month.
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-[#9aa0a6] uppercase tracking-wider font-bold block">Est. Monthly Revenue</span>
+                        <span className="text-2xl font-bold font-mono text-[#81c995]">RM {stats.planSummary.estimatedMonthlyRevenueRM}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#8ab4f8] block mb-1">Founding (Free)</span>
+                        <span className="text-xl font-bold font-mono text-[#e8eaed]">{stats.planSummary.founding}</span>
+                        <span className="text-[9px] text-[#9aa0a6] block mt-0.5">{stats.planSummary.foundingSlotsLeft} slots left of {stats.planSummary.foundingLimit}</span>
+                      </div>
+                      <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#fdd663] block mb-1">On Trial</span>
+                        <span className="text-xl font-bold font-mono text-[#e8eaed]">{stats.planSummary.trial}</span>
+                        <span className="text-[9px] text-[#9aa0a6] block mt-0.5">
+                          {stats.planSummary.trialsEndingSoon > 0 ? `${stats.planSummary.trialsEndingSoon} ending within 7 days` : "none ending soon"}
+                        </span>
+                      </div>
+                      <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#81c995] block mb-1">Paying</span>
+                        <span className="text-xl font-bold font-mono text-[#e8eaed]">{stats.planSummary.paid}</span>
+                        <span className="text-[9px] text-[#9aa0a6] block mt-0.5">RM{stats.planSummary.monthlyFeeRM}/mo each</span>
+                      </div>
+                      <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#f28b82] block mb-1">Expired</span>
+                        <span className="text-xl font-bold font-mono text-[#e8eaed]">{stats.planSummary.expired}</span>
+                        <span className="text-[9px] text-[#9aa0a6] block mt-0.5">needs renewal</span>
+                      </div>
+                      <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#9aa0a6] block mb-1">Pending Approval</span>
+                        <span className="text-xl font-bold font-mono text-[#e8eaed]">{stats.planSummary.pending}</span>
+                        <span className="text-[9px] text-[#9aa0a6] block mt-0.5">not yet assigned a plan</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Visual Stackdriver Mock Telemetry Graphs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
                   {/* Metric Card 1: Request Count */}
@@ -1339,13 +1423,14 @@ spec:
                         <th className="py-3 px-4">Badge Tier</th>
                         <th className="py-3 px-4 text-center">Contact Clicks</th>
                         <th className="py-3 px-4">Account Status</th>
+                        <th className="py-3 px-4">Plan</th>
                         <th className="py-3 px-4 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#3c4043] text-[#bdc1c6]">
                       {filteredSellers.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-12 text-center text-slate-400 italic">
+                          <td colSpan={9} className="py-12 text-center text-slate-400 italic">
                             No registered sellers found matching the query filters.
                           </td>
                         </tr>
@@ -1414,6 +1499,42 @@ spec:
                                 <span className="inline-flex items-center gap-1 text-[#fdd663] bg-amber-500/10 px-2 py-0.5 rounded border border-[#ffe088]/20 text-[10px]">
                                   Pending Review
                                 </span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              {(seller as any).planStatus === "founding" ? (
+                                <span className="inline-flex items-center gap-1 text-[#8ab4f8] bg-[#8ab4f8]/10 px-2 py-0.5 rounded border border-[#8ab4f8]/30 text-[10px] font-bold mb-1.5">
+                                  Founding (Free)
+                                </span>
+                              ) : (seller as any).planStatus === "trial" ? (
+                                <span className="inline-flex items-center gap-1 text-[#fdd663] bg-[#fdd663]/10 px-2 py-0.5 rounded border border-[#fdd663]/30 text-[10px] font-bold mb-1.5">
+                                  On Trial
+                                </span>
+                              ) : (seller as any).planStatus === "paid" ? (
+                                <span className="inline-flex items-center gap-1 text-[#81c995] bg-[#81c995]/10 px-2 py-0.5 rounded border border-[#81c995]/30 text-[10px] font-bold mb-1.5">
+                                  Paying
+                                </span>
+                              ) : (seller as any).planStatus === "expired" ? (
+                                <span className="inline-flex items-center gap-1 text-[#f28b82] bg-[#f28b82]/10 px-2 py-0.5 rounded border border-[#f28b82]/30 text-[10px] font-bold mb-1.5">
+                                  Expired
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-400/10 px-2 py-0.5 rounded border border-slate-500/20 text-[10px] mb-1.5">
+                                  Not Yet Approved
+                                </span>
+                              )}
+                              {seller.isApproved && (
+                                <select
+                                  value={(seller as any).planStatus || "pending"}
+                                  disabled={actionLoading === `plan-${seller.id}`}
+                                  onChange={(e) => handleUpdateSellerPlan(seller.id, e.target.value as any)}
+                                  className="block border border-[#5f6368] text-[10px] rounded bg-[#202124] p-1 focus:outline-none focus:border-[#8ab4f8] font-bold text-[#e8eaed] cursor-pointer"
+                                >
+                                  <option value="founding">Founding</option>
+                                  <option value="trial">Trial</option>
+                                  <option value="paid">Paid (RM20/mo received)</option>
+                                  <option value="expired">Expired</option>
+                                </select>
                               )}
                             </td>
                             <td className="py-4 px-4 text-right">

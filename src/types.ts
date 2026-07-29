@@ -17,6 +17,10 @@ export interface Seller {
   contactCount?: number;
   averageRating?: number;
   reviewCount?: number;
+  planStatus?: "pending" | "founding" | "trial" | "paid" | "expired";
+  approvedAt?: string;
+  trialEndsAt?: string;
+  nextPaymentDue?: string;
 }
 
 export interface Product {
