@@ -8,6 +8,7 @@ import {
   Trash2
 } from "lucide-react";
 import { Seller, Product } from "../types";
+import { CategoryIcon } from "../lib/categoryIcons";
 
 interface AdminStats {
   visitorCount: number;
@@ -1607,7 +1608,8 @@ spec:
                                 RM {product.price.toFixed(2)}
                               </td>
                               <td className="py-4 px-4">
-                                <span className="bg-[#2d3033] text-[#bdc1c6] px-2 py-0.5 rounded text-[10px] font-bold font-sans border border-[#3c4043]">
+                                <span className="bg-[#2d3033] text-[#bdc1c6] px-2 py-0.5 rounded text-[10px] font-bold font-sans border border-[#3c4043] inline-flex items-center gap-1">
+                                  <CategoryIcon category={product.category} className="w-3 h-3 shrink-0" />
                                   {product.category}
                                 </span>
                               </td>

@@ -65,6 +65,35 @@ export interface PublishRequest {
   productPrice?: number;
 }
 
+export interface ReceiptItem {
+  title: string;
+  unitPrice: number;
+  quantity: number;
+  type: "product" | "service";
+  productId?: string | null;
+  lineTotal: number;
+}
+
+export interface Receipt {
+  id: string;
+  receiptNumber: string;
+  sellerId: string;
+  customerName?: string;
+  customerPhone?: string;
+  items: ReceiptItem[];
+  deliveryFee: number;
+  subtotal: number;
+  total: number;
+  notes?: string;
+  createdAt: string;
+  // Enriched seller fields (present when viewed publicly/by admin)
+  businessName?: string;
+  sellerName?: string;
+  sellerPhoneNumber?: string;
+  sellerLogoUrl?: string;
+  sellerAddress?: string;
+}
+
 export interface Review {
   id: string;
   sellerId: string;

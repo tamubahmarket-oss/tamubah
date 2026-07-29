@@ -239,6 +239,33 @@ async function countPublishedProducts(sellerId: string, excludeProductId?: strin
   return count || 0;
 }
 
+function generateReceiptNumber() {
+  const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
+  const randPart = Math.random().toString(36).substr(2, 5).toUpperCase();
+  return `TB-${datePart}-${randPart}`;
+}
+
+function receiptToApi(r: any, seller: any = null) {
+  return {
+    id: r.id,
+    receiptNumber: r.id,
+    sellerId: r.seller_id,
+    customerName: r.customer_name || "",
+    customerPhone: r.customer_phone || "",
+    items: r.items || [],
+    deliveryFee: r.delivery_fee,
+    subtotal: r.subtotal,
+    total: r.total,
+    notes: r.notes || "",
+    createdAt: r.created_at,
+    businessName: seller ? seller.business_name : undefined,
+    sellerName: seller ? seller.owner_name : undefined,
+    sellerPhoneNumber: seller ? seller.phone_number : undefined,
+    sellerLogoUrl: seller ? seller.logo_url : undefined,
+    sellerAddress: seller ? seller.address : undefined,
+  };
+}
+
 async function addAdminLog(action: string, details: string) {
   await supabase.from("admin_logs").insert({
     id: "log_" + Math.random().toString(36).substr(2, 9),
@@ -831,6 +858,124 @@ async function startServer() {
     } catch (err: any) {
       console.error("GET /api/publish-requests", err);
       res.status(500).json({ error: "Failed to load publish requests." });
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // SELLER: receipts — generate a shareable receipt/invoice for a customer
+  // ---------------------------------------------------------------------
+  app.post("/api/receipts", async (req, res) => {
+    try {
+      const { sellerId, customerName, customerPhone, items, deliveryFee, notes } = req.body;
+      if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Add at least one item to the receipt." });
+      }
+
+      const { data: seller } = await supabase.from("sellers").select("id, is_approved").eq("id", sellerId).maybeSingle();
+      if (!seller) return res.status(403).json({ error: "Unauthorized. Seller account not found." });
+      if (!seller.is_approved) return res.status(403).json({ error: "Your account is pending admin approval." });
+
+      const cleanItems = items.map((it: any) => {
+        const unitPrice = parseFloat(it.unitPrice) || 0;
+        const quantity = Math.max(1, parseInt(it.quantity) || 1);
+        return {
+          title: String(it.title || "Item").slice(0, 200),
+          unitPrice,
+          quantity,
+          type: it.type === "product" ? "product" : "service",
+          productId: it.productId || null,
+          lineTotal: parseFloat((unitPrice * quantity).toFixed(2)),
+        };
+      });
+
+      const subtotal = parseFloat(cleanItems.reduce((sum: number, it: any) => sum + it.lineTotal, 0).toFixed(2));
+      const cleanDeliveryFee = parseFloat(deliveryFee) || 0;
+      const total = parseFloat((subtotal + cleanDeliveryFee).toFixed(2));
+
+      let id = generateReceiptNumber();
+      // Extremely unlikely collision, but guard against it anyway
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data: existing } = await supabase.from("receipts").select("id").eq("id", id).maybeSingle();
+        if (!existing) break;
+        id = generateReceiptNumber();
+      }
+
+      const newReceipt = {
+        id,
+        seller_id: sellerId,
+        customer_name: customerName || "",
+        customer_phone: customerPhone || "",
+        items: cleanItems,
+        delivery_fee: cleanDeliveryFee,
+        subtotal,
+        total,
+        notes: notes || "",
+      };
+      const { data: inserted, error } = await supabase.from("receipts").insert(newReceipt).select("*").single();
+      if (error) throw error;
+
+      res.json({ success: true, receipt: receiptToApi(inserted, seller as any) });
+    } catch (err: any) {
+      console.error("POST /api/receipts", err);
+      res.status(500).json({ error: "Failed to create receipt." });
+    }
+  });
+
+  // Seller's own receipt history
+  app.get("/api/receipts", async (req, res) => {
+    try {
+      const { sellerId } = req.query;
+      if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
+
+      const { data, error } = await supabase
+        .from("receipts")
+        .select("*")
+        .eq("seller_id", sellerId as string)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+
+      res.json((data || []).map((r: any) => receiptToApi(r)));
+    } catch (err: any) {
+      console.error("GET /api/receipts", err);
+      res.status(500).json({ error: "Failed to load receipts." });
+    }
+  });
+
+  // Public receipt lookup — the receipt id/number itself acts as the share
+  // token, so no auth is required. Used by the shareable customer-facing link.
+  app.get("/api/receipts/:id", async (req, res) => {
+    try {
+      const { data: receipt, error } = await supabase.from("receipts").select("*").eq("id", req.params.id).maybeSingle();
+      if (error) throw error;
+      if (!receipt) return res.status(404).json({ error: "Receipt not found." });
+
+      const { data: seller } = await supabase.from("sellers").select("*").eq("id", receipt.seller_id).maybeSingle();
+      res.json(receiptToApi(receipt, seller as any));
+    } catch (err: any) {
+      console.error("GET /api/receipts/:id", err);
+      res.status(500).json({ error: "Failed to load receipt." });
+    }
+  });
+
+  app.delete("/api/receipts/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.query;
+      if (!sellerId) return res.status(400).json({ error: "Seller ID is required." });
+
+      const { data: receipt } = await supabase.from("receipts").select("seller_id").eq("id", id).maybeSingle();
+      if (!receipt) return res.status(404).json({ error: "Receipt not found." });
+      if (receipt.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to delete this receipt." });
+
+      const { error } = await supabase.from("receipts").delete().eq("id", id);
+      if (error) throw error;
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("DELETE /api/receipts/:id", err);
+      res.status(500).json({ error: "Failed to delete receipt." });
     }
   });
 

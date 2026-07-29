@@ -96,6 +96,28 @@ create index if not exists idx_publish_requests_seller_id on publish_requests(se
 create index if not exists idx_publish_requests_status on publish_requests(status);
 
 -- ---------------------------------------------------------------------------
+-- receipts — sellers can generate a receipt/invoice for a customer order and
+-- share the link (e.g. via WhatsApp). Each receipt's id doubles as its
+-- human-readable receipt number and public share token.
+-- ---------------------------------------------------------------------------
+create table if not exists receipts (
+  id              text primary key, -- also the shareable receipt number, e.g. TB-240729-4F2K
+  seller_id       text not null references sellers(id) on delete cascade,
+  customer_name   text default '',
+  customer_phone  text default '',
+  -- items: [{ title, unitPrice, quantity, type: 'product'|'service', productId? }]
+  items           jsonb not null default '[]',
+  delivery_fee    numeric not null default 0,
+  subtotal        numeric not null default 0,
+  total           numeric not null default 0,
+  notes           text default '',
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists idx_receipts_seller_id on receipts(seller_id);
+create index if not exists idx_receipts_created_at on receipts(created_at desc);
+
+-- ---------------------------------------------------------------------------
 -- reviews
 -- ---------------------------------------------------------------------------
 create table if not exists reviews (
@@ -191,3 +213,4 @@ alter table admin_sessions  enable row level security;
 alter table admin_logs      enable row level security;
 alter table app_stats       enable row level security;
 alter table publish_requests enable row level security;
+alter table receipts        enable row level security;
