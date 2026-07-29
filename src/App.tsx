@@ -11,6 +11,7 @@ import MarketGrid from "./components/MarketGrid";
 import ShopDashboard from "./components/ShopDashboard";
 import SellerList from "./components/SellerList";
 import PendingApproval from "./components/PendingApproval";
+import ReceiptView from "./components/ReceiptView";
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
@@ -24,6 +25,10 @@ export default function App() {
   const [marketLocationFilter, setMarketLocationFilter] = useState<string>("All");
   
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+
+  // If this page was opened via a shared receipt link (?receipt=RCPT_ID),
+  // show a standalone printable receipt view instead of the normal app shell.
+  const [sharedReceiptId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("receipt"));
 
   const handleDistrictClick = (districtName: string) => {
     setMarketLocationFilter(districtName);
@@ -96,6 +101,10 @@ export default function App() {
     localStorage.setItem("sabah_seller_session", JSON.stringify(updatedSeller));
     fetchProducts();
   };
+
+  if (sharedReceiptId) {
+    return <ReceiptView receiptId={sharedReceiptId} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-800">

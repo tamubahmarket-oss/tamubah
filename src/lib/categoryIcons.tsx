@@ -1,0 +1,130 @@
+import React from "react";
+
+/**
+ * Custom minimalist icon badges for each business category — a flat colored
+ * circle with a simple white line-drawn glyph. Kept centralized so every
+ * screen (market filters, product cards, seller forms, admin panel) shows
+ * the same badge for the same category.
+ */
+
+type CategorySvgIcon = React.FC<{ className?: string }>;
+
+const BADGE_COLORS: Record<string, string> = {
+  All: "#64748b",
+  "Food&Tamu": "#f59e0b",
+  "Bundle&Fashion": "#ec4899",
+  "Gadgets&Electronics": "#3b82f6",
+  "Cars&Bikes": "#14b8a6",
+  "Homes&Living": "#22c55e",
+  "Services&Runners": "#a855f7",
+  Others: "#64748b",
+};
+
+function Badge({ color, className, children }: { color: string; className?: string; children: React.ReactNode }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="14" fill={color} />
+      {children}
+    </svg>
+  );
+}
+
+const glyphProps = {
+  stroke: "white",
+  strokeWidth: 1.6,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+  fill: "none",
+};
+
+const AllIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS.All} className={className}>
+    <rect x="9" y="9" width="6" height="6" rx="1.2" fill="white" />
+    <rect x="17" y="9" width="6" height="6" rx="1.2" fill="white" />
+    <rect x="9" y="17" width="6" height="6" rx="1.2" fill="white" />
+    <rect x="17" y="17" width="6" height="6" rx="1.2" fill="white" />
+  </Badge>
+);
+
+const FoodIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Food&Tamu"]} className={className}>
+    <path d="M9 17 A7 5 0 0 0 23 17" {...glyphProps} />
+    <line x1="8" y1="17" x2="24" y2="17" {...glyphProps} />
+    <path d="M13 9 q1.5 -2.5 0 -4" {...glyphProps} />
+    <path d="M19 9 q1.5 -2.5 0 -4" {...glyphProps} />
+  </Badge>
+);
+
+const FashionIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Bundle&Fashion"]} className={className}>
+    <path d="M16 8 v3" {...glyphProps} />
+    <path d="M16 11 l-8 6 a2 2 0 0 0 1.6 2.4 l6.4 -2.4 l6.4 2.4 a2 2 0 0 0 1.6 -2.4 z" {...glyphProps} />
+    <line x1="9" y1="19.5" x2="23" y2="19.5" {...glyphProps} />
+  </Badge>
+);
+
+const GadgetsIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Gadgets&Electronics"]} className={className}>
+    <rect x="12" y="7" width="8" height="18" rx="1.6" {...glyphProps} />
+    <circle cx="16" cy="21.5" r="0.9" fill="white" stroke="none" />
+  </Badge>
+);
+
+const CarsIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Cars&Bikes"]} className={className}>
+    <path d="M7 19 l2 -6 a2 2 0 0 1 2 -1.4 h10 a2 2 0 0 1 2 1.4 l2 6" {...glyphProps} />
+    <line x1="7" y1="19" x2="25" y2="19" {...glyphProps} />
+    <circle cx="11" cy="21" r="1.6" stroke="white" strokeWidth={1.4} fill="none" />
+    <circle cx="21" cy="21" r="1.6" stroke="white" strokeWidth={1.4} fill="none" />
+  </Badge>
+);
+
+const HomesIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Homes&Living"]} className={className}>
+    <path d="M8 15 l8 -7 l8 7" {...glyphProps} />
+    <path d="M10 14 v9 h12 v-9" {...glyphProps} />
+    <rect x="14" y="18" width="4" height="5" rx="0.6" stroke="white" strokeWidth={1.3} fill="none" />
+  </Badge>
+);
+
+const ServicesIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Services&Runners"]} className={className}>
+    <circle cx="10" cy="22" r="2.6" stroke="white" strokeWidth={1.6} fill="none" />
+    <circle cx="22" cy="10" r="2.6" stroke="white" strokeWidth={1.6} fill="none" />
+    <line x1="11.8" y1="20.2" x2="20.2" y2="11.8" stroke="white" strokeWidth={2} strokeLinecap="round" />
+  </Badge>
+);
+
+const OthersIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS.Others} className={className}>
+    <path d="M9 12 l7 -4 l7 4 l0 9 l-7 4 l-7 -4 z" {...glyphProps} />
+    <path d="M9 12 l7 4 l7 -4" {...glyphProps} />
+    <line x1="16" y1="16" x2="16" y2="25" {...glyphProps} />
+  </Badge>
+);
+
+export const CATEGORY_ICONS: Record<string, CategorySvgIcon> = {
+  All: AllIcon,
+  "Food&Tamu": FoodIcon,
+  "Bundle&Fashion": FashionIcon,
+  "Gadgets&Electronics": GadgetsIcon,
+  "Cars&Bikes": CarsIcon,
+  "Homes&Living": HomesIcon,
+  "Services&Runners": ServicesIcon,
+  Others: OthersIcon,
+};
+
+export function getCategoryIcon(category: string): CategorySvgIcon {
+  return CATEGORY_ICONS[category] || OthersIcon;
+}
+
+interface CategoryIconProps {
+  category: string;
+  className?: string;
+}
+
+/** Convenience component: <CategoryIcon category={p.category} className="w-4 h-4" /> */
+export function CategoryIcon({ category, className }: CategoryIconProps) {
+  const Icon = getCategoryIcon(category);
+  return <Icon className={className} />;
+}
