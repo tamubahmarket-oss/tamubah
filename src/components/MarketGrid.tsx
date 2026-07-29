@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "../types";
 import ShareModal from "./ShareModal";
 import { useLanguage } from "../lib/LanguageContext";
-import { CategoryIcon } from "../lib/categoryIcons";
+import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
 
 interface MarketGridProps {
   products: Product[];
@@ -670,8 +670,12 @@ export default function MarketGrid({
               <div
                 key={p.id}
                 id={`market-product-card-${p.id}`}
-                className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative"
+                style={{ backgroundColor: getCategoryTint(p.category, 0.05), borderColor: getCategoryTint(p.category, 0.35) }}
+                className="group rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full relative"
               >
+                {/* Category accent bar */}
+                <div className="h-1 w-full shrink-0" style={{ backgroundColor: getCategoryColor(p.category) }} />
+
                 {/* Image Section */}
                 <div className="h-28 sm:h-32 overflow-hidden relative bg-slate-50 shrink-0">
                   <img
