@@ -1437,6 +1437,15 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                         <span className="text-sm font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
                           RM {Number(r.total).toFixed(2)}
                         </span>
+                        <a
+                          href={`/market?receipt=${r.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all cursor-pointer"
+                          title="View & print / save as PDF"
+                        >
+                          <ReceiptIcon className="w-4 h-4" />
+                        </a>
                         <button
                           onClick={() => handleShareReceipt(r)}
                           className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer"

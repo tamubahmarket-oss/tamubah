@@ -940,7 +940,7 @@ async function startServer() {
       res.json({ success: true, receipt: receiptToApi(inserted, seller as any) });
     } catch (err: any) {
       console.error("POST /api/receipts", err);
-      res.status(500).json({ error: "Failed to create receipt." });
+      res.status(500).json({ error: err.message ? `Failed to create receipt: ${err.message}` : "Failed to create receipt." });
     }
   });
 
@@ -961,7 +961,7 @@ async function startServer() {
       res.json((data || []).map((r: any) => receiptToApi(r)));
     } catch (err: any) {
       console.error("GET /api/receipts", err);
-      res.status(500).json({ error: "Failed to load receipts." });
+      res.status(500).json({ error: err.message ? `Failed to load receipts: ${err.message}` : "Failed to load receipts." });
     }
   });
 
@@ -977,7 +977,7 @@ async function startServer() {
       res.json(receiptToApi(receipt, seller as any));
     } catch (err: any) {
       console.error("GET /api/receipts/:id", err);
-      res.status(500).json({ error: "Failed to load receipt." });
+      res.status(500).json({ error: err.message ? `Failed to load receipt: ${err.message}` : "Failed to load receipt." });
     }
   });
 
