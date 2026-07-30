@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Search, MapPin, Phone, Award, ShieldCheck, ShieldAlert, 
-  Calendar, User, Briefcase, FileText, ArrowUpRight, 
+  Search, MapPin, Phone, ShieldCheck, ShieldAlert, 
+  Calendar, User, Briefcase, FileText, 
   X, Filter, Star, Info, ShoppingBag, Grid, CheckCircle, Share2, Check
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Seller, Product, SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "../types";
 import ShareModal from "./ShareModal";
 import { useLanguage } from "../lib/LanguageContext";
+import { LocationWatermark } from "../lib/locationIcons";
+import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
 
 interface SellerWithStats extends Seller {
   productCount: number;
@@ -439,148 +441,113 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSellers.map((seller) => {
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          {filteredSellers.map((seller, idx) => {
             const sellerInv = getSellerProducts(seller.id);
+            const catColor = getCategoryColor(seller.category);
             return (
-              <div 
+              <motion.div
                 key={seller.id}
-                className="group bg-white rounded-3xl border border-slate-100/80 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col justify-between"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: Math.min(idx, 10) * 0.04, ease: "easeOut" }}
+                whileHover={{ y: -4 }}
+                style={{ backgroundColor: getCategoryTint(seller.category, 0.04) }}
+                className="group relative rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden flex flex-col justify-between h-full"
               >
-                {/* Seller Intro Card Segment */}
-                <div className="p-5.5 space-y-4 flex-grow">
-                  
-                  {/* Logo and Verification Banner */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center text-emerald-800 shrink-0">
+                {/* Animated category-colored top accent */}
+                <div className="h-1 w-full shrink-0 relative overflow-hidden" style={{ backgroundColor: catColor }}>
+                  <motion.div
+                    className="absolute inset-y-0 w-1/3"
+                    style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)" }}
+                    animate={{ x: ["-100%", "220%"] }}
+                    transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }}
+                  />
+                </div>
+
+                {/* Animated, layered location watermark */}
+                <LocationWatermark
+                  location={seller.location}
+                  color={catColor}
+                  className="absolute -bottom-4 -right-5 w-28 h-28 opacity-20 pointer-events-none select-none z-0"
+                />
+
+                {/* Card Content */}
+                <div className="relative z-10 p-3 space-y-2 flex-grow">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center text-emerald-800 shrink-0">
                       {seller.logoUrl ? (
-                        <img 
-                          src={seller.logoUrl} 
-                          alt={seller.businessName} 
+                        <img
+                          src={seller.logoUrl}
+                          alt={seller.businessName}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
-                        <span className="font-extrabold text-xl">{seller.businessName.charAt(0)}</span>
+                        <span className="font-extrabold text-sm">{seller.businessName.charAt(0)}</span>
                       )}
                     </div>
-
-                    <div className="flex flex-col items-end gap-1.5">
-                      {seller.verificationTier === "Gold" ? (
-                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 bg-[#faf6eb] border border-[#d4af37]/35 shadow-sm" style={{ color: "#b8860b" }} title="Gold Tier Verified Merchant">
-                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#d4af37" }} />
-                          {language === "EN" ? "Gold Licensed" : "Berlesen Emas"}
-                        </span>
-                      ) : seller.verificationTier === "Silver" ? (
-                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 bg-[#f4f5f7] border border-[#c0c0c0]/35 shadow-sm" style={{ color: "#5a6268" }} title="Silver Tier Verified Merchant">
-                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#c0c0c0" }} />
-                          {language === "EN" ? "Silver Licensed" : "Berlesen Perak"}
-                        </span>
-                      ) : seller.verificationTier === "Bronze" ? (
-                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 bg-[#faf5f0] border border-[#cd7f32]/35 shadow-sm" style={{ color: "#a0522d" }} title="Bronze Tier Verified Merchant">
-                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#cd7f32" }} />
-                          {language === "EN" ? "Bronze Licensed" : "Berlesen Gangsa"}
-                        </span>
-                      ) : (
-                        <span className="bg-slate-50 text-slate-500 text-[10px] font-semibold px-2.5 py-1 rounded-full border border-slate-100 flex items-center gap-1 shrink-0" title="Standard/Home-based custom order maker">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          {language === "EN" ? "Home Cook" : "Peniaga Rumah"}
-                        </span>
-                      )}
-                    </div>
+                    {seller.verificationTier === "Gold" ? (
+                      <motion.div
+                        animate={{ opacity: [0.7, 1, 0.7] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: "#d4af37" }} title="Gold Licensed Seller" />
+                      </motion.div>
+                    ) : seller.verificationTier === "Silver" ? (
+                      <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: "#c0c0c0" }} title="Silver Licensed Seller" />
+                    ) : seller.verificationTier === "Bronze" ? (
+                      <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: "#cd7f32" }} title="Bronze Licensed Seller" />
+                    ) : null}
                   </div>
 
-                  {/* Shop Details */}
                   <div>
-                    <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                    <span
+                      className="text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider inline-flex items-center gap-1"
+                      style={{ backgroundColor: catColor }}
+                    >
+                      <CategoryIcon category={seller.category} className="w-2.5 h-2.5 shrink-0" />
                       {t(seller.category)}
                     </span>
-                    <h3 className="font-extrabold text-slate-900 text-lg group-hover:text-emerald-700 transition-colors leading-tight mt-1.5 flex items-center gap-1">
+                    <h3 className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors leading-snug mt-1 line-clamp-2">
                       {seller.businessName}
-                      {seller.verificationTier === "Gold" ? (
-                        <ShieldCheck className="w-4 h-4 shrink-0 inline-block" style={{ color: "#d4af37" }} title="Exclusive Gold Licensed Seller" />
-                      ) : seller.verificationTier === "Silver" ? (
-                        <ShieldCheck className="w-4 h-4 shrink-0 inline-block" style={{ color: "#c0c0c0" }} title="Exclusive Silver Licensed Seller" />
-                      ) : seller.verificationTier === "Bronze" ? (
-                        <ShieldCheck className="w-4 h-4 shrink-0 inline-block" style={{ color: "#cd7f32" }} title="Exclusive Bronze Licensed Seller" />
-                      ) : null}
                     </h3>
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-400">
-                      <span className="font-medium text-slate-500">{language === "EN" ? `By ${seller.ownerName}` : `Oleh ${seller.ownerName}`}</span>
-                      <span>•</span>
-                      <span className="flex items-center gap-0.5">
-                        <MapPin className="w-3 h-3 text-emerald-600" />
-                        {seller.location}
-                      </span>
-                    </div>
-                    {/* Rating Summary Badge */}
-                    <div className="flex items-center gap-1.5 mt-2 text-xs">
-                      {seller.averageRating && seller.averageRating > 0 ? (
-                        <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded-md text-amber-800">
-                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
-                          <span className="font-extrabold font-mono text-[11px]">{seller.averageRating.toFixed(1)}</span>
-                          <span className="text-[10px] text-amber-700/80">
-                            ({language === "EN" ? `${seller.reviewCount} ${seller.reviewCount === 1 ? "review" : "reviews"}` : `${seller.reviewCount} ulasan`})
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md text-slate-400">
-                          <Star className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                          <span className="text-[10px] italic">
-                            {language === "EN" ? "No ratings yet" : "Belum ada penarafan"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    <span className="flex items-center gap-0.5 text-[9px] text-slate-400 mt-0.5">
+                      <MapPin className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                      <span className="line-clamp-1">{seller.location}</span>
+                    </span>
                   </div>
 
-                  {/* Motivational Dream Statement */}
-                  <div className="bg-slate-50/70 p-3 rounded-2xl border border-slate-100/50 text-xs italic text-slate-600 leading-relaxed font-serif line-clamp-3">
-                    "{seller.dream || (language === "EN" ? "Dedicated to providing local families with our traditional recipes and high-quality home bakes." : "Berdedikasi untuk menyediakan keluarga tempatan dengan resipi tradisional kami dan biskut buatan sendiri berkualiti tinggi.")}"
-                  </div>
-
-                  {/* Safety Alert indicator if reported */}
-                  {seller.reportCount > 0 && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-800 text-[10px] rounded-xl p-2.5 flex items-start gap-1.5 leading-relaxed">
-                      <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        {language === "EN" ? (
-                          <>
-                            <span className="font-bold">Caution:</span> Has {seller.reportCount} warning {seller.reportCount === 1 ? "flag" : "flags"}. We advise COD transactions.
-                          </>
-                        ) : (
-                          <>
-                            <span className="font-bold">Perhatian:</span> Mempunyai {seller.reportCount} bendera amaran. Kami mengesyorkan pembayaran tunai semasa serahan (COD).
-                          </>
-                        )}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {seller.averageRating && seller.averageRating > 0 ? (
+                      <div className="flex items-center gap-0.5 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded text-amber-800">
+                        <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-500 shrink-0" />
+                        <span className="font-extrabold font-mono text-[9px]">{seller.averageRating.toFixed(1)}</span>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Quick coordinates */}
-                  <div className="space-y-1.5 text-xs text-slate-500">
-                    <p className="line-clamp-1 flex items-center gap-1 text-[11px]">
-                      <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-semibold text-slate-600">{language === "EN" ? "Base:" : "Tapak:"}</span> {seller.address}
-                    </p>
-                    {seller.ssmNumber && (
-                      <p className="font-mono text-[10px] text-emerald-700 flex items-center gap-1 bg-emerald-50/40 w-fit px-2 py-0.5 rounded-md">
-                        <Award className="w-3.5 h-3.5 text-emerald-600" />
-                        {language === "EN" ? "License / SSM:" : "Lesen / SSM:"} {seller.ssmNumber}
-                      </p>
+                    ) : (
+                      <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded text-slate-400">
+                        <Star className="w-2.5 h-2.5 text-slate-300 shrink-0" />
+                        <span className="text-[8px] italic">{language === "EN" ? "New" : "Baru"}</span>
+                      </div>
+                    )}
+                    {seller.reportCount > 0 && (
+                      <div className="flex items-center gap-0.5 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded text-rose-700" title={`${seller.reportCount} warning flag(s)`}>
+                        <ShieldAlert className="w-2.5 h-2.5 shrink-0" />
+                        <span className="text-[8px] font-bold">{seller.reportCount}</span>
+                      </div>
                     )}
                   </div>
-
                 </div>
 
                 {/* Bottom Card Actions */}
-                <div className="px-5.5 pb-5.5 pt-3 border-t border-slate-50/80 bg-slate-50/30 grid grid-cols-2 gap-2.5">
+                <div className="relative z-10 p-2 pt-1.5 border-t border-slate-50/80 bg-white/70 backdrop-blur-sm grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => handleOpenSellerModal(seller)}
-                    className="py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:border-slate-300"
+                    title={language === "EN" ? `Browse Items (${sellerInv.length})` : `Lihat Produk (${sellerInv.length})`}
+                    className="py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[9px] flex items-center justify-center gap-1 transition-all cursor-pointer hover:border-slate-300"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5 text-slate-400" />
-                    {language === "EN" ? `Browse Items (${sellerInv.length})` : `Lihat Produk (${sellerInv.length})`}
+                    <ShoppingBag className="w-3 h-3 text-slate-400 shrink-0" />
+                    {sellerInv.length}
                   </button>
 
                   <a
@@ -588,15 +555,14 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => handleTrackContactClick(seller.id)}
-                    className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer hover:shadow-md hover:shadow-emerald-600/10"
+                    className="py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] flex items-center justify-center gap-1 transition-all cursor-pointer"
                   >
-                    <Phone className="w-3.5 h-3.5" />
+                    <Phone className="w-3 h-3 shrink-0" />
                     {t("contact_now")}
-                    <ArrowUpRight className="w-3 h-3" />
                   </a>
                 </div>
 
-              </div>
+              </motion.div>
             );
           })}
         </div>
