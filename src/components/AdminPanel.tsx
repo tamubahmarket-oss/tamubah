@@ -919,275 +919,46 @@ spec:
                   </div>
                 )}
 
-                {/* Visual Stackdriver Mock Telemetry Graphs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
-                  {/* Metric Card 1: Request Count */}
-                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider block">Request count</span>
-                        <span className="text-[9px] text-[#81c995] bg-[#137333]/15 border border-[#137333]/30 px-1.5 py-0.2 rounded font-semibold font-mono">Live</span>
-                      </div>
-                      <div className="flex items-baseline gap-1.5 mb-2">
-                        <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{stats?.visitorCount ?? 0}</span>
-                        <span className="text-xs text-[#9aa0a6] font-medium font-mono">total requests</span>
-                      </div>
+                {/* Real Platform Stats — every number here comes straight from the database */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider">Total Sellers</span>
+                      <Users className="w-4 h-4 text-[#8ab4f8]" />
                     </div>
-                    
-                    {/* SVG Line/Area Graph */}
-                    <div className="h-24 w-full relative">
-                      <svg className="w-full h-full" viewBox="0 0 280 90" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="blueAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#8ab4f8" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#8ab4f8" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        {/* Gridlines */}
-                        <line x1="0" y1="22" x2="280" y2="22" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="45" x2="280" y2="45" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="67" x2="280" y2="67" stroke="#3c4043" strokeDasharray="3,3" />
-                        {/* Area */}
-                        <path 
-                          d="M 0,90 Q 30,85 60,70 T 120,78 T 180,45 T 240,30 T 280,18 L 280,90 Z" 
-                          fill="url(#blueAreaGrad)" 
-                        />
-                        {/* Line */}
-                        <path 
-                          d="M 0,90 Q 30,85 60,70 T 120,78 T 180,45 T 240,30 T 280,18" 
-                          fill="none" 
-                          stroke="#8ab4f8" 
-                          strokeWidth="2" 
-                        />
-                        {/* Active tooltip line and point */}
-                        <line x1="240" y1="0" x2="240" y2="90" stroke="#8ab4f8" strokeOpacity="0.3" />
-                        <circle cx="240" cy="30" r="4" fill="#8ab4f8" stroke="#202124" strokeWidth="1.5" />
-                      </svg>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#2d3033] text-[10px]">
-                      <span className="text-[#9aa0a6] font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#81c995]"></span>
-                        2xx (OK): 100%
-                      </span>
-                      <span className="text-slate-500 font-mono">Interval: 1m</span>
-                    </div>
+                    <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{stats?.totalSellers ?? 0}</span>
                   </div>
 
-                  {/* Metric Card 2: Request Latency */}
-                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider block">Request latencies</span>
-                        <span className="text-[10px] text-[#aecbfa] font-mono">ms</span>
-                      </div>
-                      <div className="flex items-baseline gap-2 mb-2">
-                        <span className="text-3xl font-bold font-mono text-[#f1f3f4]">42</span>
-                        <span className="text-xs text-[#9aa0a6] font-semibold font-mono">ms p95 avg</span>
-                      </div>
+                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider">Total Products</span>
+                      <FileText className="w-4 h-4 text-[#8ab4f8]" />
                     </div>
-                    
-                    {/* SVG Multiple Line Graph */}
-                    <div className="h-24 w-full relative">
-                      <svg className="w-full h-full" viewBox="0 0 280 90" preserveAspectRatio="none">
-                        {/* Gridlines */}
-                        <line x1="0" y1="22" x2="280" y2="22" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="45" x2="280" y2="45" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="67" x2="280" y2="67" stroke="#3c4043" strokeDasharray="3,3" />
-                        
-                        {/* p50 Line (Light Blue) */}
-                        <path 
-                          d="M 0,80 Q 40,78 80,75 T 160,72 T 240,74 T 280,71" 
-                          fill="none" 
-                          stroke="#8ab4f8" 
-                          strokeWidth="1.5" 
-                          strokeOpacity="0.8"
-                        />
-                        {/* p95 Line (Purple) */}
-                        <path 
-                          d="M 0,65 Q 40,55 80,60 T 160,42 T 240,48 T 280,38" 
-                          fill="none" 
-                          stroke="#c5a3ff" 
-                          strokeWidth="1.5" 
-                        />
-                        {/* p99 Line (Orange) */}
-                        <path 
-                          d="M 0,45 Q 40,30 80,35 T 160,18 T 240,25 T 280,12" 
-                          fill="none" 
-                          stroke="#ffbc00" 
-                          strokeWidth="1.5" 
-                          strokeOpacity="0.8"
-                        />
-                        <circle cx="240" cy="48" r="3" fill="#c5a3ff" stroke="#202124" strokeWidth="1" />
-                      </svg>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#2d3033] text-[9px] font-mono text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-0.5 bg-[#8ab4f8]"></span> p50: 12ms
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-0.5 bg-[#c5a3ff]"></span> p95: 42ms
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-0.5 bg-[#ffbc00]"></span> p99: 135ms
-                      </span>
-                    </div>
+                    <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{stats?.totalProducts ?? 0}</span>
                   </div>
 
-                  {/* Metric Card 3: Container Instance Count */}
-                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider block">Container instance count</span>
-                        <span className="text-[9px] text-[#81c995] font-mono font-bold uppercase">Autoscaled</span>
-                      </div>
-                      <div className="flex items-baseline gap-1.5 mb-2">
-                        <span className="text-3xl font-bold font-mono text-[#f1f3f4]">1</span>
-                        <span className="text-xs text-[#9aa0a6] font-semibold font-mono">active instance (max 100)</span>
-                      </div>
+                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider">Visitor Requests</span>
+                      <TrendingUp className="w-4 h-4 text-[#81c995]" />
                     </div>
-                    
-                    {/* SVG Step Curve Graph showing scale-to-zero when idle */}
-                    <div className="h-24 w-full relative">
-                      <svg className="w-full h-full" viewBox="0 0 280 90" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="greenAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#81c995" stopOpacity="0.2" />
-                            <stop offset="100%" stopColor="#81c995" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        {/* Gridlines */}
-                        <line x1="0" y1="22" x2="280" y2="22" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="45" x2="280" y2="45" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="67" x2="280" y2="67" stroke="#3c4043" strokeDasharray="3,3" />
-                        {/* Step Area */}
-                        <path 
-                          d="M 0,90 L 40,90 L 40,55 L 120,55 L 120,25 L 200,25 L 200,55 L 240,55 L 240,90 L 280,90 L 280,90 Z" 
-                          fill="url(#greenAreaGrad)" 
-                        />
-                        {/* Step Line */}
-                        <path 
-                          d="M 0,90 L 40,90 L 40,55 L 120,55 L 120,25 L 200,25 L 200,55 L 240,55 L 240,90 L 280,90" 
-                          fill="none" 
-                          stroke="#81c995" 
-                          strokeWidth="2" 
-                        />
-                        <circle cx="160" cy="25" r="3" fill="#81c995" stroke="#202124" strokeWidth="1" />
-                      </svg>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#2d3033] text-[10px]">
-                      <span className="text-[#9aa0a6] font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#81c995]"></span>
-                        Serving requests
-                      </span>
-                      <span className="text-slate-500 font-mono text-[9px]">Min: 0 &bull; Max: 100</span>
-                    </div>
+                    <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{stats?.visitorCount ?? 0}</span>
                   </div>
 
-                  {/* Metric Card 4: CPU & Memory Utilization */}
-                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider block">Resource utilization</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Limits: 2 CPU | 4 GiB</span>
-                      </div>
-                      <div className="flex items-baseline gap-2 mb-2">
-                        <span className="text-lg font-bold font-mono text-[#f1f3f4]">CPU: 4.8%</span>
-                        <span className="text-slate-500 font-semibold text-xs font-sans">|</span>
-                        <span className="text-lg font-bold font-mono text-[#f1f3f4]">Mem: 185 MiB</span>
-                      </div>
+                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider">WhatsApp Clicks</span>
+                      <ExternalLink className="w-4 h-4 text-[#fdd663]" />
                     </div>
-                    
-                    {/* SVG Dual CPU/Memory area lines */}
-                    <div className="h-24 w-full relative">
-                      <svg className="w-full h-full" viewBox="0 0 280 90" preserveAspectRatio="none">
-                        {/* Gridlines */}
-                        <line x1="0" y1="22" x2="280" y2="22" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="45" x2="280" y2="45" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="67" x2="280" y2="67" stroke="#3c4043" strokeDasharray="3,3" />
-                        
-                        {/* CPU Utilization Line (Blue) */}
-                        <path 
-                          d="M 0,82 Q 40,78 80,68 T 160,75 T 240,62 T 280,58" 
-                          fill="none" 
-                          stroke="#8ab4f8" 
-                          strokeWidth="1.5" 
-                        />
-                        {/* Memory Utilization Line (Green) */}
-                        <path 
-                          d="M 0,60 Q 40,58 80,55 T 160,51 T 240,48 T 280,45" 
-                          fill="none" 
-                          stroke="#81c995" 
-                          strokeWidth="1.5" 
-                        />
-                        <circle cx="240" cy="62" r="3" fill="#8ab4f8" stroke="#202124" strokeWidth="1" />
-                        <circle cx="240" cy="48" r="3" fill="#81c995" stroke="#202124" strokeWidth="1" />
-                      </svg>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#2d3033] text-[9px] font-mono text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-0.5 bg-[#8ab4f8]"></span> CPU avg (4.8%)
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-0.5 bg-[#81c995]"></span> Memory avg (4.5%)
-                      </span>
-                    </div>
+                    <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{(stats as any)?.contactSellerCount ?? 0}</span>
                   </div>
 
-                  {/* Metric Card 5: Contact Seller Clicks */}
-                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md flex flex-col justify-between min-h-[220px]">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider block">WhatsApp Clicks</span>
-                        <span className="text-[9px] text-[#ffbc00] bg-[#f9ab00]/15 border border-[#f9ab00]/30 px-1.5 py-0.2 rounded font-semibold font-mono">Engagement</span>
-                      </div>
-                      <div className="flex items-baseline gap-1.5 mb-2">
-                        <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{(stats as any)?.contactSellerCount ?? 0}</span>
-                        <span className="text-xs text-[#9aa0a6] font-medium font-mono">total clicks</span>
-                      </div>
+                  <div className="bg-[#202124] border border-[#3c4043] p-4 rounded-md shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[#9aa0a6] text-[10px] font-bold uppercase tracking-wider">Reports Filed</span>
+                      <AlertTriangle className="w-4 h-4 text-[#f28b82]" />
                     </div>
-                    
-                    {/* SVG Line/Area Graph for Clicks */}
-                    <div className="h-24 w-full relative">
-                      <svg className="w-full h-full" viewBox="0 0 280 90" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="yellowAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#ffbc00" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#ffbc00" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        {/* Gridlines */}
-                        <line x1="0" y1="22" x2="280" y2="22" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="45" x2="280" y2="45" stroke="#3c4043" strokeDasharray="3,3" />
-                        <line x1="0" y1="67" x2="280" y2="67" stroke="#3c4043" strokeDasharray="3,3" />
-                        {/* Area */}
-                        <path 
-                          d="M 0,90 Q 30,80 60,65 T 120,70 T 180,50 T 240,40 T 280,25 L 280,90 Z" 
-                          fill="url(#yellowAreaGrad)" 
-                        />
-                        {/* Line */}
-                        <path 
-                          d="M 0,90 Q 30,80 60,65 T 120,70 T 180,50 T 240,40 T 280,25" 
-                          fill="none" 
-                          stroke="#ffbc00" 
-                          strokeWidth="2" 
-                        />
-                        {/* Active tooltip line and point */}
-                        <line x1="240" y1="0" x2="240" y2="90" stroke="#ffbc00" strokeOpacity="0.3" />
-                        <circle cx="240" cy="40" r="4" fill="#ffbc00" stroke="#202124" strokeWidth="1.5" />
-                      </svg>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#2d3033] text-[10px]">
-                      <span className="text-[#9aa0a6] font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#81c995]"></span>
-                        Conversion Active
-                      </span>
-                      <span className="text-slate-500 font-mono text-[9px]">Interval: 1m</span>
-                    </div>
+                    <span className="text-3xl font-bold font-mono text-[#f1f3f4]">{stats?.totalReports ?? 0}</span>
                   </div>
                 </div>
 
