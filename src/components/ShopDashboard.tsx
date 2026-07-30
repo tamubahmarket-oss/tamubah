@@ -341,6 +341,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [imageUrl, setImageUrl] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
   const [dragActive, setDragActive] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
 
   // Form states for business profile
   const [profileLogoUrl, setProfileLogoUrl] = useState(seller.logoUrl || "");
@@ -355,6 +356,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [profileAddress, setProfileAddress] = useState(seller.address || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileDragActive, setProfileDragActive] = useState(false);
+  const [profileImageUploading, setProfileImageUploading] = useState(false);
 
   // Sync profile form values if seller prop changes
   useEffect(() => {
@@ -374,6 +376,12 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (profileImageUploading) {
+      setError("Please wait for the logo to finish uploading.");
+      return;
+    }
+
     setSavingProfile(true);
 
     try {
@@ -435,11 +443,23 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
     try {
       // Compress and resize (converting to .webp with max 800px dimension and 0.8 quality)
       const compressedBase64 = await compressAndResizeImage(file, 800, 0.8, "image/webp");
-      setProfileLogoUrl(compressedBase64);
+      setProfileLogoUrl(compressedBase64); // instant local preview
       setError(null);
+
+      setProfileImageUploading(true);
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl: compressedBase64, folder: "sellers" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to upload logo.");
+      setProfileLogoUrl(data.url); // swap preview for the real, lightweight URL
     } catch (err: any) {
-      console.error("Compression error:", err);
-      setError("Failed to process and compress the logo. Please try another image.");
+      console.error("Compression/upload error:", err);
+      setError("Failed to process and upload the logo. Please try another image.");
+    } finally {
+      setProfileImageUploading(false);
     }
   };
 
@@ -502,11 +522,23 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
     try {
       // Compress and resize (converting to .webp with max 1000px dimension and 0.8 quality)
       const compressedBase64 = await compressAndResizeImage(file, 1000, 0.8, "image/webp");
-      setImageUrl(compressedBase64);
+      setImageUrl(compressedBase64); // instant local preview
       setError(null);
+
+      setImageUploading(true);
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl: compressedBase64, folder: "products" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to upload image.");
+      setImageUrl(data.url); // swap preview for the real, lightweight URL
     } catch (err: any) {
-      console.error("Compression error:", err);
-      setError("Failed to process and compress the product image. Please try another image.");
+      console.error("Compression/upload error:", err);
+      setError("Failed to process and upload the product image. Please try another image.");
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -543,6 +575,11 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
 
     if (!title.trim() || !category || !description.trim() || !price || !imageUrl) {
       setError("All fields are required. Remember, a picture is a MUST!");
+      return;
+    }
+
+    if (imageUploading) {
+      setError("Please wait for the photo to finish uploading.");
       return;
     }
 
@@ -984,10 +1021,10 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
               <button
                 id="post-product-btn"
                 type="submit"
-                disabled={loading}
+                disabled={loading || imageUploading}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 mt-2 cursor-pointer"
               >
-                {loading ? "Posting..." : "Post to Sabah Market"}
+                {imageUploading ? "Uploading photo..." : loading ? "Posting..." : "Post to Sabah Market"}
                 <Check className="w-4 h-4" />
               </button>
             </form>
@@ -1869,10 +1906,10 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                 {/* Submit button */}
                 <button
                   type="submit"
-                  disabled={savingProfile}
+                  disabled={savingProfile || profileImageUploading}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
                 >
-                  {savingProfile ? "Saving Profile..." : "Save Business Profile Changes"}
+                  {profileImageUploading ? "Uploading logo..." : savingProfile ? "Saving Profile..." : "Save Business Profile Changes"}
                   <Check className="w-4 h-4" />
                 </button>
 

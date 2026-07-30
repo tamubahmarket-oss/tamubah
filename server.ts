@@ -52,6 +52,98 @@ const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROL
 const ADMIN_SESSION_COOKIE = "tamubah_admin_session";
 const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
+const STORAGE_BUCKET = "tamubah-images";
+
+// Creates the public storage bucket used for product photos & business
+// logos if it doesn't exist yet. Safe to run on every boot.
+async function ensureStorageBucket() {
+  try {
+    const { data: buckets, error } = await supabase.storage.listBuckets();
+    if (error) {
+      console.error("Could not list storage buckets:", error.message);
+      return;
+    }
+    const exists = (buckets || []).some((b) => b.name === STORAGE_BUCKET);
+    if (exists) return;
+
+    const { error: createError } = await supabase.storage.createBucket(STORAGE_BUCKET, {
+      public: true,
+      fileSizeLimit: "10MB",
+    });
+    if (createError) {
+      console.error("Failed to create storage bucket:", createError.message);
+    } else {
+      console.log(`Created public storage bucket "${STORAGE_BUCKET}".`);
+    }
+  } catch (err: any) {
+    console.error("ensureStorageBucket error:", err.message);
+  }
+}
+
+// Uploads a base64 data URL (e.g. from client-side canvas compression) to
+// Supabase Storage and returns its public URL.
+async function uploadDataUrlToStorage(dataUrl: string, pathPrefix: string): Promise<string> {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error("Invalid image data URL.");
+  const mime = match[1];
+  const base64Data = match[2];
+  const ext = mime.split("/")[1]?.replace("jpeg", "jpg") || "webp";
+  const buffer = Buffer.from(base64Data, "base64");
+
+  const path = `${pathPrefix}/${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, buffer, {
+    contentType: mime,
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// One-time (per-row) migration: any product/seller image still stored as a
+// giant base64 data URL directly in the database gets uploaded to Storage
+// and swapped for a lightweight public URL instead. Idempotent — rows
+// already migrated are skipped, so this is safe to run on every boot.
+async function migrateBase64ImagesToStorage() {
+  try {
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, image_url")
+      .like("image_url", "data:%");
+
+    for (const p of products || []) {
+      try {
+        const url = await uploadDataUrlToStorage(p.image_url, "products/legacy");
+        await supabase.from("products").update({ image_url: url }).eq("id", p.id);
+      } catch (err: any) {
+        console.error(`Failed to migrate image for product ${p.id}:`, err.message);
+      }
+    }
+
+    const { data: sellers } = await supabase
+      .from("sellers")
+      .select("id, logo_url")
+      .like("logo_url", "data:%");
+
+    for (const s of sellers || []) {
+      try {
+        const url = await uploadDataUrlToStorage(s.logo_url, "sellers/legacy");
+        await supabase.from("sellers").update({ logo_url: url }).eq("id", s.id);
+      } catch (err: any) {
+        console.error(`Failed to migrate logo for seller ${s.id}:`, err.message);
+      }
+    }
+
+    const migratedCount = (products?.length || 0) + (sellers?.length || 0);
+    if (migratedCount > 0) {
+      console.log(`Migrated ${migratedCount} image(s) from inline base64 to Supabase Storage.`);
+    }
+  } catch (err: any) {
+    console.error("migrateBase64ImagesToStorage error:", err.message);
+  }
+}
+
 async function bootstrapAdminIfNeeded() {
   const { count, error } = await supabase
     .from("admin_users")
@@ -321,6 +413,7 @@ async function getSellerRatingSummary(sellerId: string) {
 // ============================================================================
 async function startServer() {
   await bootstrapAdminIfNeeded();
+  await ensureStorageBucket();
 
   const app = express();
   const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -333,6 +426,28 @@ async function startServer() {
   // spinning down, and for basic "is it alive" checks.
   app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Uploads a client-side-compressed image (base64 data URL) to Supabase
+  // Storage and returns a lightweight public URL. Used by the seller
+  // dashboard for product photos and business logos, instead of storing
+  // the full image as text in the database.
+  app.post("/api/upload-image", async (req, res) => {
+    try {
+      const { dataUrl, folder } = req.body;
+      if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+        return res.status(400).json({ error: "A valid image data URL is required." });
+      }
+      if (dataUrl.length > 15_000_000) {
+        return res.status(400).json({ error: "Image is too large." });
+      }
+      const safeFolder = folder === "sellers" ? "sellers" : "products";
+      const url = await uploadDataUrlToStorage(dataUrl, safeFolder);
+      res.json({ success: true, url });
+    } catch (err: any) {
+      console.error("POST /api/upload-image", err);
+      res.status(500).json({ error: err.message || "Failed to upload image." });
+    }
   });
 
   // ---------------------------------------------------------------------
@@ -1792,6 +1907,9 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    // Runs in the background so a large legacy-image backlog never delays
+    // the server from binding to the port / passing a host's health check.
+    migrateBase64ImagesToStorage();
   });
 }
 
