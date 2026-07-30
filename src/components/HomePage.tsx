@@ -1,7 +1,8 @@
 import React from "react";
 import { 
   ArrowRight, Store, Share2, Award, Heart, HelpCircle, 
-  CheckCircle, Smartphone, Send, Megaphone, Users
+  CheckCircle, Smartphone, Send, Megaphone, Users,
+  Mail, Phone, Globe
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
 
@@ -393,6 +394,42 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
                 "Kami akan melancarkan aplikasi ini secara rasmi secara meluas untuk menarik ribuan pelanggan aktif di seluruh negeri bagi menyokong produk Sabah."
               )}
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Need Help / Support */}
+      <section className="max-w-4xl mx-auto px-4 pb-16">
+        <div className="bg-emerald-950 rounded-3xl p-8 md:p-10 text-center">
+          <h3 className="text-white font-bold text-lg mb-2">
+            {isEN ? "Need help with anything?" : "Perlukan bantuan?"}
+          </h3>
+          <p className="text-emerald-100/80 text-xs md:text-sm mb-6 max-w-md mx-auto leading-relaxed">
+            {isEN
+              ? "Our team is here for you — whether it's a question about signing up, your shop, or anything else."
+              : "Pasukan kami sedia membantu — sama ada soalan tentang pendaftaran, kedai anda, atau apa-apa sahaja."}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm">
+            <a
+              href="mailto:support@tamubah.com"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-xl transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5 shrink-0" />
+              support@tamubah.com
+            </a>
+            <a
+              href="https://wa.me/60154412099"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl transition-colors font-semibold"
+            >
+              <Phone className="w-3.5 h-3.5 shrink-0" />
+              +60 11-5441 2099
+            </a>
+            <span className="flex items-center gap-1.5 text-emerald-100/70 px-4 py-2.5">
+              <Globe className="w-3.5 h-3.5 shrink-0" />
+              www.tamubah.com
+            </span>
           </div>
         </div>
       </section>

@@ -4,7 +4,8 @@ import tamubahLogo from "./assets/images/traditional_bag_logo_1784122537315.jpg"
 import { useLanguage } from "./lib/LanguageContext";
 import { 
   ShoppingBag, Store, User, ChevronRight, MapPin, 
-  CheckCircle, Plus, Info, Landmark, HelpCircle, ArrowRight, Home
+  CheckCircle, Plus, Info, Landmark, HelpCircle, ArrowRight, Home,
+  Mail, Phone, Globe
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "./types";
 import MarketGrid from "./components/MarketGrid";
@@ -446,20 +447,38 @@ export default function App() {
             </div>
           </div>
 
-          {currentSeller && activeTab !== "shop" && (
-            <div>
-              <h4 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-4">My Shop Account</h4>
-              <p className="text-slate-400 text-xs leading-relaxed mb-4">
-                You are logged in as <span className="text-emerald-400 font-semibold">{currentSeller.businessName}</span>. Go to your Seller Space to add new products or update your public profile.
-              </p>
-              <button
-                onClick={() => setActiveTab("shop")}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
-              >
-                Go to Seller Space
-              </button>
+          <div>
+            <h4 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-4">Need Help?</h4>
+            <div className="space-y-2.5 text-xs text-slate-400 mb-5">
+              <a href="mailto:support@tamubah.com" className="flex items-center gap-1.5 hover:text-emerald-400 transition-colors w-fit">
+                <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                support@tamubah.com
+              </a>
+              <a href="https://wa.me/60154412099" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-emerald-400 transition-colors w-fit">
+                <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                +60 11-5441 2099
+              </a>
+              <span className="flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                www.tamubah.com
+              </span>
             </div>
-          )}
+
+            {currentSeller && activeTab !== "shop" && (
+              <>
+                <h4 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-3">My Shop Account</h4>
+                <p className="text-slate-400 text-xs leading-relaxed mb-4">
+                  You are logged in as <span className="text-emerald-400 font-semibold">{currentSeller.businessName}</span>. Go to your Seller Space to add new products or update your public profile.
+                </p>
+                <button
+                  onClick={() => setActiveTab("shop")}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
+                >
+                  Go to Seller Space
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 border-t border-slate-800/60 mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-slate-500 text-xs">
