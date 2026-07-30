@@ -682,6 +682,8 @@ export default function MarketGrid({
                     src={p.imageUrl}
                     alt={p.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
 
@@ -725,7 +727,7 @@ export default function MarketGrid({
                     >
                       <div className="w-4 h-4 rounded overflow-hidden bg-emerald-50 border border-emerald-100/50 flex items-center justify-center text-[7px] font-bold text-emerald-800 shrink-0">
                         {p.sellerLogoUrl ? (
-                          <img src={p.sellerLogoUrl} alt={p.businessName} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                          <img src={p.sellerLogoUrl} alt={p.businessName} referrerPolicy="no-referrer" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           p.businessName.charAt(0)
                         )}
@@ -878,6 +880,8 @@ export default function MarketGrid({
                       src={selectedSellerProfile.sellerLogoUrl} 
                       alt={selectedSellerProfile.businessName} 
                       referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover" 
                     />
                   ) : (
@@ -1420,6 +1424,7 @@ export default function MarketGrid({
                   src={sharedProduct.imageUrl}
                   alt={sharedProduct.title}
                   referrerPolicy="no-referrer"
+                  decoding="async"
                   className="w-full h-full object-cover absolute inset-0"
                 />
                 <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
@@ -1474,7 +1479,7 @@ export default function MarketGrid({
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-emerald-200 flex items-center justify-center font-bold text-emerald-800 text-sm shrink-0 shadow-sm">
                         {sharedProduct.sellerLogoUrl ? (
-                          <img src={sharedProduct.sellerLogoUrl} alt={sharedProduct.businessName} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                          <img src={sharedProduct.sellerLogoUrl} alt={sharedProduct.businessName} referrerPolicy="no-referrer" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           sharedProduct.businessName.charAt(0)
                         )}

@@ -481,6 +481,8 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                           src={seller.logoUrl}
                           alt={seller.businessName}
                           referrerPolicy="no-referrer"
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
@@ -601,6 +603,7 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                         src={activeSellerModal.logoUrl} 
                         alt={activeSellerModal.businessName} 
                         referrerPolicy="no-referrer"
+                        decoding="async"
                         className="w-full h-full object-cover" 
                       />
                     ) : (
@@ -760,6 +763,8 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                             src={prod.imageUrl} 
                             alt={prod.title} 
                             referrerPolicy="no-referrer"
+                            loading="lazy"
+                            decoding="async"
                             className="w-16 h-16 rounded-xl object-cover shrink-0 bg-slate-50"
                           />
                           <div className="flex flex-col justify-between flex-grow min-w-0">
