@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Search, MapPin, Phone, ShieldCheck, ShieldAlert, 
   Calendar, User, Briefcase, FileText, 
-  X, Filter, Star, Info, ShoppingBag, Grid, CheckCircle, Share2, Check
+  X, Filter, Star, Info, ShoppingBag, Grid, CheckCircle, Share2, Check, Megaphone
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Seller, Product, SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "../types";
@@ -518,6 +518,12 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                       <MapPin className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                       <span className="line-clamp-1">{seller.location}</span>
                     </span>
+                    {seller.latestUpdate && seller.latestUpdateAt && (Date.now() - new Date(seller.latestUpdateAt).getTime()) < 3 * 24 * 60 * 60 * 1000 && (
+                      <div className="flex items-start gap-1 bg-amber-50 border border-amber-100 rounded-lg px-1.5 py-1 mt-1.5">
+                        <Megaphone className="w-2.5 h-2.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span className="text-[9px] text-amber-800 leading-snug line-clamp-2">{seller.latestUpdate}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1 flex-wrap">
@@ -667,6 +673,12 @@ export default function SellerList({ products, onRefreshProducts }: SellerListPr
                         <>Diusahakan oleh <span className="text-white font-medium">{activeSellerModal.ownerName}</span> di <span className="font-semibold text-white">{activeSellerModal.location}, Sabah</span></>
                       )}
                     </p>
+                    {activeSellerModal.latestUpdate && activeSellerModal.latestUpdateAt && (Date.now() - new Date(activeSellerModal.latestUpdateAt).getTime()) < 3 * 24 * 60 * 60 * 1000 && (
+                      <div className="flex items-start gap-1.5 bg-amber-400/10 border border-amber-300/20 rounded-lg px-2.5 py-1.5 mt-2.5">
+                        <Megaphone className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
+                        <span className="text-xs text-amber-100 leading-snug">{activeSellerModal.latestUpdate}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

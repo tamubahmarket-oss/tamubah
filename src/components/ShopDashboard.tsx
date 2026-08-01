@@ -10,6 +10,8 @@ import { compressAndResizeImage } from "../utils";
 import { useLanguage } from "../lib/LanguageContext";
 import ShareModal from "./ShareModal";
 import { CategoryIcon } from "../lib/categoryIcons";
+import QuickUpdateCard from "./QuickUpdateCard";
+import PostStoryCard from "./PostStoryCard";
 import tamubahBagIcon from "../assets/images/traditional_bag_logo_1784122537315.jpg";
 
 
@@ -822,6 +824,9 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       </div>
 
       {activeSubTab === "products" ? (
+        <>
+        <QuickUpdateCard seller={seller} onUpdated={onRefreshMarket} onUpdateSeller={onUpdateSeller} />
+        <PostStoryCard seller={seller} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column: Create Product Form */}
@@ -1206,6 +1211,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
         </div>
 
       </div>
+      </>
       ) : activeSubTab === "receipts" ? (
         <div id="receipts-panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
