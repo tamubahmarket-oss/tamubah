@@ -21,6 +21,8 @@ export interface Seller {
   approvedAt?: string;
   trialEndsAt?: string;
   nextPaymentDue?: string;
+  latestUpdate?: string;
+  latestUpdateAt?: string;
 }
 
 export interface Product {
@@ -76,6 +78,22 @@ export interface ReceiptItem {
   type: "product" | "service";
   productId?: string | null;
   lineTotal: number;
+}
+
+export interface Story {
+  id: string;
+  sellerId: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  caption: string;
+  createdAt: string;
+  expiresAt: string;
+  // Enriched fields (present on the public feed)
+  businessName?: string;
+  sellerLogoUrl?: string;
+  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerLocation?: string;
+  sellerPhoneNumber?: string;
 }
 
 export interface Receipt {

@@ -2,7 +2,7 @@ import React from "react";
 import { 
   ArrowRight, Store, Share2, Award, Heart, HelpCircle, 
   CheckCircle, Smartphone, Send, Megaphone, Users,
-  Mail, Phone, Globe
+  Mail, Globe
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
 
@@ -412,19 +412,10 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
           <div className="flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm">
             <a
               href="mailto:support@tamubah.com"
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-xl transition-colors"
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl transition-colors font-semibold"
             >
               <Mail className="w-3.5 h-3.5 shrink-0" />
               support@tamubah.com
-            </a>
-            <a
-              href="https://wa.me/60154412099"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl transition-colors font-semibold"
-            >
-              <Phone className="w-3.5 h-3.5 shrink-0" />
-              +60 11-5441 2099
             </a>
             <span className="flex items-center gap-1.5 text-emerald-100/70 px-4 py-2.5">
               <Globe className="w-3.5 h-3.5 shrink-0" />

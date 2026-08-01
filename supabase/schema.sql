@@ -48,6 +48,11 @@ create table if not exists sellers (
   approved_at           timestamptz,
   trial_ends_at         timestamptz,
   next_payment_due      timestamptz,
+  -- Lightweight "what's fresh today" status sellers can post any time
+  -- (e.g. "Fresh kuih ready today!") — shown on their storefront card
+  -- while recent, without needing a full product listing.
+  latest_update         text default '',
+  latest_update_at      timestamptz,
   created_at            timestamptz not null default now()
 );
 
@@ -56,6 +61,8 @@ alter table sellers add column if not exists plan_status text not null default '
 alter table sellers add column if not exists approved_at timestamptz;
 alter table sellers add column if not exists trial_ends_at timestamptz;
 alter table sellers add column if not exists next_payment_due timestamptz;
+alter table sellers add column if not exists latest_update text default '';
+alter table sellers add column if not exists latest_update_at timestamptz;
 
 create index if not exists idx_sellers_location on sellers(location);
 create index if not exists idx_sellers_category on sellers(category);
@@ -133,6 +140,24 @@ create table if not exists receipts (
 
 create index if not exists idx_receipts_seller_id on receipts(seller_id);
 create index if not exists idx_receipts_created_at on receipts(created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- stories — Instagram/WhatsApp-style ephemeral photo/video posts. Each story
+-- auto-expires 24 hours after posting (filtered out in queries, not deleted
+-- immediately — a cleanup job prunes old rows periodically).
+-- ---------------------------------------------------------------------------
+create table if not exists stories (
+  id           text primary key,
+  seller_id    text not null references sellers(id) on delete cascade,
+  media_url    text not null,
+  media_type   text not null check (media_type in ('image', 'video')),
+  caption      text default '',
+  created_at   timestamptz not null default now(),
+  expires_at   timestamptz not null
+);
+
+create index if not exists idx_stories_seller_id on stories(seller_id);
+create index if not exists idx_stories_expires_at on stories(expires_at);
 
 -- ---------------------------------------------------------------------------
 -- reviews
@@ -231,3 +256,4 @@ alter table admin_logs      enable row level security;
 alter table app_stats       enable row level security;
 alter table publish_requests enable row level security;
 alter table receipts        enable row level security;
+alter table stories         enable row level security;

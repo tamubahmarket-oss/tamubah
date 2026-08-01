@@ -105,6 +105,20 @@ async function uploadDataUrlToStorage(dataUrl: string, pathPrefix: string): Prom
 // giant base64 data URL directly in the database gets uploaded to Storage
 // and swapped for a lightweight public URL instead. Idempotent — rows
 // already migrated are skipped, so this is safe to run on every boot.
+// Deletes story rows that expired more than 2 days ago. Recently-expired
+// rows are left a little longer just in case, but this keeps the table from
+// growing forever. Safe to run on every boot.
+async function pruneExpiredStories() {
+  try {
+    const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const { error, count } = await supabase.from("stories").delete({ count: "exact" }).lt("expires_at", cutoff);
+    if (error) throw error;
+    if (count) console.log(`Pruned ${count} expired stor${count === 1 ? "y" : "ies"}.`);
+  } catch (err: any) {
+    console.error("pruneExpiredStories error:", err.message);
+  }
+}
+
 async function migrateBase64ImagesToStorage() {
   try {
     const { data: products } = await supabase
@@ -264,6 +278,8 @@ interface SellerRow {
   approved_at: string | null;
   trial_ends_at: string | null;
   next_payment_due: string | null;
+  latest_update: string | null;
+  latest_update_at: string | null;
   created_at: string;
 }
 
@@ -305,6 +321,8 @@ function sellerToApi(s: SellerRow, extra: Record<string, any> = {}) {
     approvedAt: s.approved_at || undefined,
     trialEndsAt: s.trial_ends_at || undefined,
     nextPaymentDue: s.next_payment_due || undefined,
+    latestUpdate: s.latest_update || undefined,
+    latestUpdateAt: s.latest_update_at || undefined,
     ...extra,
   };
 }
@@ -350,6 +368,18 @@ function generateReceiptNumber() {
   const datePart = new Date().toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
   const randPart = Math.random().toString(36).substr(2, 5).toUpperCase();
   return `TB-${datePart}-${randPart}`;
+}
+
+function storyToApi(s: any) {
+  return {
+    id: s.id,
+    sellerId: s.seller_id,
+    mediaUrl: s.media_url,
+    mediaType: s.media_type,
+    caption: s.caption || "",
+    createdAt: s.created_at,
+    expiresAt: s.expires_at,
+  };
 }
 
 function receiptToApi(r: any, seller: any = null) {
@@ -435,18 +465,104 @@ async function startServer() {
   app.post("/api/upload-image", async (req, res) => {
     try {
       const { dataUrl, folder } = req.body;
-      if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-        return res.status(400).json({ error: "A valid image data URL is required." });
+      const isImage = typeof dataUrl === "string" && dataUrl.startsWith("data:image/");
+      const isVideo = typeof dataUrl === "string" && dataUrl.startsWith("data:video/");
+      if (!dataUrl || !(isImage || isVideo)) {
+        return res.status(400).json({ error: "A valid image or video data URL is required." });
       }
-      if (dataUrl.length > 15_000_000) {
-        return res.status(400).json({ error: "Image is too large." });
+      const sizeLimit = isVideo ? 45_000_000 : 15_000_000;
+      if (dataUrl.length > sizeLimit) {
+        return res.status(400).json({ error: isVideo ? "Video is too large (max ~30MB)." : "Image is too large." });
       }
-      const safeFolder = folder === "sellers" ? "sellers" : "products";
+      const safeFolder = folder === "sellers" ? "sellers" : folder === "stories" ? "stories" : "products";
       const url = await uploadDataUrlToStorage(dataUrl, safeFolder);
       res.json({ success: true, url });
     } catch (err: any) {
       console.error("POST /api/upload-image", err);
       res.status(500).json({ error: err.message || "Failed to upload image." });
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // STORIES — ephemeral 24-hour photo/video posts (Instagram/WhatsApp-style)
+  // ---------------------------------------------------------------------
+  app.post("/api/stories", async (req, res) => {
+    try {
+      const { sellerId, mediaUrl, mediaType, caption } = req.body;
+      if (!sellerId || !mediaUrl || (mediaType !== "image" && mediaType !== "video")) {
+        return res.status(400).json({ error: "sellerId, mediaUrl and a valid mediaType are required." });
+      }
+
+      const { data: seller } = await supabase.from("sellers").select("id, is_approved").eq("id", sellerId).maybeSingle();
+      if (!seller) return res.status(403).json({ error: "Unauthorized. Seller account not found." });
+      if (!seller.is_approved) return res.status(403).json({ error: "Your account is pending admin approval." });
+
+      const now = new Date();
+      const newStory = {
+        id: "story_" + Math.random().toString(36).substr(2, 10),
+        seller_id: sellerId,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        caption: String(caption || "").slice(0, 200),
+        created_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+      const { data: inserted, error } = await supabase.from("stories").insert(newStory).select("*").single();
+      if (error) throw error;
+
+      res.json({ success: true, story: storyToApi(inserted) });
+    } catch (err: any) {
+      console.error("POST /api/stories", err);
+      res.status(500).json({ error: err.message || "Failed to post story." });
+    }
+  });
+
+  // Public feed: every non-expired story, newest first, enriched with seller info
+  app.get("/api/stories", async (req, res) => {
+    try {
+      const { data: stories, error } = await supabase
+        .from("stories")
+        .select("*")
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const sellerIds = [...new Set((stories || []).map((s: any) => s.seller_id))];
+      const { data: sellers } = sellerIds.length
+        ? await supabase.from("sellers").select("id, business_name, logo_url, verification_tier, location, phone_number").in("id", sellerIds)
+        : { data: [] as any[] };
+      const sellerById = new Map((sellers || []).map((s: any) => [s.id, s]));
+
+      res.json(
+        (stories || []).map((s: any) => ({
+          ...storyToApi(s),
+          businessName: sellerById.get(s.seller_id)?.business_name || "TamuBah Seller",
+          sellerLogoUrl: sellerById.get(s.seller_id)?.logo_url || undefined,
+          sellerVerificationTier: sellerById.get(s.seller_id)?.verification_tier || "None",
+          sellerLocation: sellerById.get(s.seller_id)?.location || "",
+          sellerPhoneNumber: sellerById.get(s.seller_id)?.phone_number || undefined,
+        }))
+      );
+    } catch (err: any) {
+      console.error("GET /api/stories", err);
+      res.status(500).json({ error: "Failed to load stories." });
+    }
+  });
+
+  app.delete("/api/stories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.query;
+      const { data: story } = await supabase.from("stories").select("seller_id").eq("id", id).maybeSingle();
+      if (!story) return res.status(404).json({ error: "Story not found." });
+      if (story.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to delete this story." });
+
+      const { error } = await supabase.from("stories").delete().eq("id", id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("DELETE /api/stories/:id", err);
+      res.status(500).json({ error: "Failed to delete story." });
     }
   });
 
@@ -538,6 +654,34 @@ async function startServer() {
       res.status(500).json({ error: "Failed to load seller profile." });
     }
   });
+
+  // Lightweight "what's fresh today" status a seller can post any time,
+  // shown on their storefront card while it's still recent.
+  app.patch("/api/sellers/:id/latest-update", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { update } = req.body;
+      const cleanUpdate = String(update || "").trim().slice(0, 140);
+
+      const { data: seller, error } = await supabase
+        .from("sellers")
+        .update({
+          latest_update: cleanUpdate,
+          latest_update_at: cleanUpdate ? new Date().toISOString() : null,
+        })
+        .eq("id", id)
+        .select("*")
+        .maybeSingle();
+      if (error) throw error;
+      if (!seller) return res.status(404).json({ error: "Seller profile not found." });
+
+      res.json({ success: true, seller: sellerToApi(seller as SellerRow) });
+    } catch (err: any) {
+      console.error("PATCH /api/sellers/:id/latest-update", err);
+      res.status(500).json({ error: "Failed to post update." });
+    }
+  });
+
 
   app.patch("/api/sellers/:id", async (req, res) => {
     try {
@@ -1910,6 +2054,7 @@ async function startServer() {
     // Runs in the background so a large legacy-image backlog never delays
     // the server from binding to the port / passing a host's health check.
     migrateBase64ImagesToStorage();
+    pruneExpiredStories();
   });
 }
 

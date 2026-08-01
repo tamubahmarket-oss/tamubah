@@ -5,7 +5,7 @@ import { useLanguage } from "./lib/LanguageContext";
 import { 
   ShoppingBag, Store, User, ChevronRight, MapPin, 
   CheckCircle, Plus, Info, Landmark, HelpCircle, ArrowRight, Home,
-  Mail, Phone, Globe
+  Mail, Globe
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "./types";
 import MarketGrid from "./components/MarketGrid";
@@ -453,10 +453,6 @@ export default function App() {
               <a href="mailto:support@tamubah.com" className="flex items-center gap-1.5 hover:text-emerald-400 transition-colors w-fit">
                 <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 support@tamubah.com
-              </a>
-              <a href="https://wa.me/60154412099" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-emerald-400 transition-colors w-fit">
-                <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                +60 11-5441 2099
               </a>
               <span className="flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />

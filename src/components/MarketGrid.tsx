@@ -10,6 +10,7 @@ import { Product, SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "../types";
 import ShareModal from "./ShareModal";
 import { useLanguage } from "../lib/LanguageContext";
 import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
+import StoryBar from "./StoryBar";
 
 interface MarketGridProps {
   products: Product[];
@@ -470,6 +471,11 @@ export default function MarketGrid({
 
   return (
     <div id="market-grid-container" className="max-w-7xl mx-auto px-4 py-8">
+      {/* Seller Stories */}
+      <div className="mb-8">
+        <StoryBar />
+      </div>
+
       {/* Hero Intro Section */}
       <div className="text-center max-w-3xl mx-auto mb-12">
         <span className="bg-emerald-50 text-emerald-800 text-xs font-bold px-4 py-1.5 rounded-full border border-emerald-200/50 uppercase tracking-widest inline-block mb-3">
