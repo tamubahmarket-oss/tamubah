@@ -83,8 +83,8 @@ async function ensureStorageBucket() {
 // Uploads a base64 data URL (e.g. from client-side canvas compression) to
 // Supabase Storage and returns its public URL.
 async function uploadDataUrlToStorage(dataUrl: string, pathPrefix: string): Promise<string> {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error("Invalid image data URL.");
+  const match = dataUrl.match(/^data:((?:image|video)\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error("Invalid image or video data URL.");
   const mime = match[1];
   const base64Data = match[2];
   const ext = mime.split("/")[1]?.replace("jpeg", "jpg") || "webp";
@@ -108,12 +108,47 @@ async function uploadDataUrlToStorage(dataUrl: string, pathPrefix: string): Prom
 // Deletes story rows that expired more than 2 days ago. Recently-expired
 // rows are left a little longer just in case, but this keeps the table from
 // growing forever. Safe to run on every boot.
+function storagePathFromPublicUrl(mediaUrl: string): string | null {
+  const publicPrefix = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/`;
+  return mediaUrl && mediaUrl.startsWith(publicPrefix) ? mediaUrl.slice(publicPrefix.length) : null;
+}
+
+async function deleteStoryMediaFile(mediaUrl: string) {
+  const path = storagePathFromPublicUrl(mediaUrl);
+  if (!path) return;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+  if (error) console.error("Failed to remove story file from Storage:", error.message);
+}
+
+// Deletes both the database row AND the actual photo/video file in Storage
+// for any story that has passed its 24-hour expires_at. Runs at boot and
+// again every hour so cleanup happens promptly even if the server stays up
+// for days without a fresh deploy (e.g. kept alive by an uptime pinger).
 async function pruneExpiredStories() {
   try {
-    const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const { error, count } = await supabase.from("stories").delete({ count: "exact" }).lt("expires_at", cutoff);
-    if (error) throw error;
-    if (count) console.log(`Pruned ${count} expired stor${count === 1 ? "y" : "ies"}.`);
+    const { data: expired, error: fetchError } = await supabase
+      .from("stories")
+      .select("id, media_url")
+      .lte("expires_at", new Date().toISOString());
+    if (fetchError) throw fetchError;
+    if (!expired || expired.length === 0) return;
+
+    // Delete the actual media files from Storage first
+    const storagePaths = expired
+      .map((s: any) => storagePathFromPublicUrl(s.media_url))
+      .filter((p: string | null): p is string => !!p);
+
+    if (storagePaths.length > 0) {
+      const { error: removeError } = await supabase.storage.from(STORAGE_BUCKET).remove(storagePaths);
+      if (removeError) console.error("Failed to remove expired story files from Storage:", removeError.message);
+    }
+
+    // Then remove the now-orphaned database rows
+    const ids = expired.map((s: any) => s.id);
+    const { error: deleteError } = await supabase.from("stories").delete().in("id", ids);
+    if (deleteError) throw deleteError;
+
+    console.log(`Deleted ${expired.length} expired stor${expired.length === 1 ? "y" : "ies"} (file + record).`);
   } catch (err: any) {
     console.error("pruneExpiredStories error:", err.message);
   }
@@ -553,9 +588,11 @@ async function startServer() {
     try {
       const { id } = req.params;
       const { sellerId } = req.query;
-      const { data: story } = await supabase.from("stories").select("seller_id").eq("id", id).maybeSingle();
+      const { data: story } = await supabase.from("stories").select("seller_id, media_url").eq("id", id).maybeSingle();
       if (!story) return res.status(404).json({ error: "Story not found." });
       if (story.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to delete this story." });
+
+      await deleteStoryMediaFile(story.media_url);
 
       const { error } = await supabase.from("stories").delete().eq("id", id);
       if (error) throw error;
@@ -2055,6 +2092,7 @@ async function startServer() {
     // the server from binding to the port / passing a host's health check.
     migrateBase64ImagesToStorage();
     pruneExpiredStories();
+    setInterval(pruneExpiredStories, 60 * 60 * 1000); // also re-check every hour
   });
 }
 
