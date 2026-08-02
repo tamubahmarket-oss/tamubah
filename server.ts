@@ -30,6 +30,9 @@ if (typeof globalThis.WebSocket === "undefined") {
 // ============================================================================
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "TamuBah <support@tamubah.com>";
+const APP_BASE_URL = process.env.APP_BASE_URL || "https://www.tamubah.com";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error(
@@ -191,6 +194,117 @@ async function migrateBase64ImagesToStorage() {
   } catch (err: any) {
     console.error("migrateBase64ImagesToStorage error:", err.message);
   }
+}
+
+// ---------------------------------------------------------------------------
+// EMAIL — sends via Resend's REST API directly (no SDK dependency needed).
+// If RESEND_API_KEY isn't set, sends are silently skipped and logged, so the
+// app keeps working locally/without email configured.
+// ---------------------------------------------------------------------------
+async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+  if (!RESEND_API_KEY) {
+    console.log(`[email skipped — no RESEND_API_KEY set] would have sent "${subject}" to ${to}`);
+    return;
+  }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: RESEND_FROM_EMAIL, to, subject, html }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Resend send failed (${res.status}) to ${to}:`, body);
+    }
+  } catch (err: any) {
+    console.error(`Failed to send email to ${to}:`, err.message);
+  }
+}
+
+function emailShell(bodyHtml: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+  <body style="margin:0;padding:0;background:#f4f6f5;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f5;padding:32px 0;">
+  <tr><td align="center">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);max-width:600px;">
+    <tr><td style="padding:28px 40px 16px;text-align:center;border-bottom:1px solid #eef2f0;">
+      <img src="${APP_BASE_URL}/tamubah-logo-email.png" alt="TamuBah" width="180" style="display:block;margin:0 auto;max-width:180px;height:auto;">
+    </td></tr>
+    <tr><td style="padding:0;"><div style="height:4px;background:linear-gradient(90deg,#059669,#f59e0b,#059669);"></div></td></tr>
+    ${bodyHtml}
+    <tr><td style="padding:24px 40px;background:#f8fafc;border-top:1px solid #eef2f0;text-align:center;">
+      <p style="margin:0 0 4px;font-size:13px;color:#94a3b8;">TamuBah — Sabah's Digital Tamu</p>
+      <p style="margin:0;font-size:12px;color:#cbd5e1;">support@tamubah.com &nbsp;•&nbsp; www.tamubah.com</p>
+    </td></tr>
+  </table>
+  </td></tr>
+  </table>
+  </body></html>`;
+}
+
+function renderSellerWelcomeEmail(seller: { ownerName: string; businessName: string }, planStatus: "founding" | "trial"): { subject: string; html: string } {
+  const ownerFirstName = (seller.ownerName || "there").split(" ")[0];
+
+  if (planStatus === "founding") {
+    return {
+      subject: `Welcome to TamuBah, ${seller.businessName}! You're one of our first 100 sellers 🎉`,
+      html: emailShell(`
+        <tr><td style="padding:36px 40px 8px;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#059669;">Welcome to TamuBah</p>
+          <h2 style="margin:0 0 20px;font-size:22px;color:#0f172a;">Your shop is live, ${ownerFirstName}! 🎉</h2>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+            Great news — <strong>${seller.businessName}</strong> has been approved and is now live on TamuBah!
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;width:100%;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+            <tr><td style="padding:16px 18px;">
+              <p style="margin:0;font-size:14px;line-height:1.6;color:#065f46;">
+                🌟 <strong>You're a Founding Seller</strong> — one of our first 100. Your account is <strong>free forever</strong>, no monthly fee, ever.
+              </p>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#334155;">Here's how to get started:</p>
+          <ul style="margin:0 0 24px;padding-left:20px;font-size:15px;line-height:1.8;color:#334155;">
+            <li>Log in to your seller dashboard</li>
+            <li>Add your products and publish your first item</li>
+            <li>Share your shop link with customers on WhatsApp and Facebook</li>
+          </ul>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#059669;">
+            <a href="${APP_BASE_URL}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">Go to My Dashboard</a>
+          </td></tr></table>
+        </td></tr>`),
+    };
+  }
+
+  return {
+    subject: `Welcome to TamuBah, ${seller.businessName}! Your free trial has started`,
+    html: emailShell(`
+      <tr><td style="padding:36px 40px 8px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#059669;">Welcome to TamuBah</p>
+        <h2 style="margin:0 0 20px;font-size:22px;color:#0f172a;">Your shop is live, ${ownerFirstName}!</h2>
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+          <strong>${seller.businessName}</strong> has been approved and is now live on TamuBah!
+        </p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;width:100%;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
+          <tr><td style="padding:16px 18px;">
+            <p style="margin:0;font-size:14px;line-height:1.6;color:#92400e;">
+              🗓️ You're starting a <strong>30-day free trial</strong>. After that, staying active costs just <strong>RM20/month</strong> — this helps keep TamuBah running for sellers across Sabah.
+            </p>
+          </td></tr>
+        </table>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#334155;">Here's how to get started:</p>
+        <ul style="margin:0 0 24px;padding-left:20px;font-size:15px;line-height:1.8;color:#334155;">
+          <li>Log in to your seller dashboard</li>
+          <li>Add your products and publish your first item</li>
+          <li>Share your shop link with customers</li>
+        </ul>
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#059669;">
+          <a href="${APP_BASE_URL}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">Go to My Dashboard</a>
+        </td></tr></table>
+      </td></tr>`),
+  };
 }
 
 async function bootstrapAdminIfNeeded() {
@@ -1792,10 +1906,78 @@ async function startServer() {
         `Changed approval/verification for ${updated.business_name}: Approved=${updated.is_approved}, Tier=${updated.verification_tier || "None"}`
       );
 
+      // Fire the welcome email if this request just assigned a plan (i.e. this
+      // was their first-ever approval). Doesn't block or fail the response.
+      if (update.plan_status === "founding" || update.plan_status === "trial") {
+        const { subject, html } = renderSellerWelcomeEmail(
+          { ownerName: updated.owner_name, businessName: updated.business_name },
+          update.plan_status
+        );
+        sendEmail({ to: updated.email, subject, html });
+      }
+
       res.json({ success: true, seller: sellerToApi(updated as SellerRow) });
     } catch (err: any) {
       console.error("POST /api/admin/sellers/:id/verify", err);
       res.status(500).json({ error: "Failed to update seller." });
+    }
+  });
+
+  // Send a personalized email to many sellers at once. The subject/body can
+  // use {{ownerName}} and {{businessName}} placeholders, which get swapped
+  // in per-recipient — so it's one "campaign" but every email reads as if
+  // written just for that seller.
+  app.post("/api/admin/broadcast-email", requireAdminAuth, async (req, res) => {
+    try {
+      const { subject, bodyHtml, planFilter, rawHtml } = req.body;
+      if (!subject || !bodyHtml) {
+        return res.status(400).json({ error: "subject and bodyHtml are required." });
+      }
+
+      let query = supabase.from("sellers").select("id, email, owner_name, business_name, plan_status").eq("is_approved", true);
+      if (planFilter && planFilter !== "all") {
+        query = query.eq("plan_status", planFilter);
+      }
+      const { data: sellers, error } = await query;
+      if (error) throw error;
+      if (!sellers || sellers.length === 0) {
+        return res.status(400).json({ error: "No matching sellers found." });
+      }
+
+      // Respond immediately — the actual sending happens in the background so
+      // the admin isn't stuck waiting on a page that could take a minute or
+      // more for a large seller list.
+      res.json({ success: true, queued: sellers.length });
+
+      const personalize = (template: string, s: any) =>
+        template
+          .replaceAll("{{ownerName}}", s.owner_name || "there")
+          .replaceAll("{{businessName}}", s.business_name || "your shop");
+
+      (async () => {
+        let sent = 0;
+        let failed = 0;
+        for (const s of sellers) {
+          try {
+            const personalizedBody = personalize(bodyHtml, s);
+            await sendEmail({
+              to: s.email,
+              subject: personalize(subject, s),
+              // "Custom HTML" mode: the admin pasted a complete, self-contained
+              // email template (their own header/logo/etc.) — send as-is rather
+              // than wrapping it in the default brand shell a second time.
+              html: rawHtml ? personalizedBody : emailShell(`<tr><td style="padding:36px 40px;">${personalizedBody}</td></tr>`),
+            });
+            sent++;
+          } catch {
+            failed++;
+          }
+        }
+        await addAdminLog("broadcast_email_sent", `Sent broadcast email "${subject}" to ${sent} seller(s)${failed ? `, ${failed} failed` : ""}.`);
+      })();
+    } catch (err: any) {
+      console.error("POST /api/admin/broadcast-email", err);
+      res.status(500).json({ error: "Failed to send broadcast email." });
     }
   });
 

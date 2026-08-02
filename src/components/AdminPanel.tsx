@@ -5,7 +5,7 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Settings, Play, Server, FileText,
   ChevronDown, HelpCircle, Bell, User, MoreVertical, Menu, ShieldAlert,
-  Trash2, Wallet
+  Trash2, Wallet, Send, Mail
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -65,6 +65,75 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [sellerSearch, setSellerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [sellerFilter, setSellerFilter] = useState<"all" | "verified" | "unverified">("all");
+
+  // --- Broadcast email ---
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastSubject, setBroadcastSubject] = useState("");
+  const [broadcastBody, setBroadcastBody] = useState("");
+  const [broadcastPlanFilter, setBroadcastPlanFilter] = useState("all");
+  const [broadcastMode, setBroadcastMode] = useState<"text" | "html">("text");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+
+  const personalizePreview = (template: string) =>
+    template.replaceAll("{{ownerName}}", "Ahmad").replaceAll("{{businessName}}", "Kedai Ahmad");
+
+  const handlePreviewBroadcast = () => {
+    if (!broadcastBody.trim()) return;
+    const html =
+      broadcastMode === "html"
+        ? personalizePreview(broadcastBody)
+        : `<div style="font-family:Arial,sans-serif;max-width:600px;margin:40px auto;padding:24px;">${personalizePreview(
+            broadcastBody
+          )
+            .split("\n")
+            .map((line) => `<p style="font-size:15px;line-height:1.6;color:#334155;">${line}</p>`)
+            .join("")}</div>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
+  const handleSendBroadcast = async () => {
+    if (!broadcastSubject.trim() || !broadcastBody.trim()) {
+      setBroadcastError("Subject and message body are required.");
+      return;
+    }
+    setBroadcastSending(true);
+    setBroadcastError(null);
+    setBroadcastResult(null);
+    try {
+      const bodyHtml =
+        broadcastMode === "html"
+          ? broadcastBody
+          : broadcastBody
+              .split("\n")
+              .map((line) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#334155;">${line}</p>`)
+              .join("");
+      const res = await fetch("/api/admin/broadcast-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: broadcastSubject,
+          bodyHtml,
+          planFilter: broadcastPlanFilter,
+          rawHtml: broadcastMode === "html",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send broadcast.");
+      setBroadcastResult(`Sending to ${data.queued} seller(s) in the background — check the Logs tab shortly for the final result.`);
+      setBroadcastSubject("");
+      setBroadcastBody("");
+    } catch (err: any) {
+      setBroadcastError(err.message || "Failed to send broadcast.");
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
   const [productFilter, setProductFilter] = useState<"all" | "pinned" | "regular">("all");
 
   // Admin Pagination states
@@ -1179,6 +1248,13 @@ spec:
                       <option value="verified">Verified Only (Approved Permits)</option>
                       <option value="unverified">Unverified Only (Pending Audit)</option>
                     </select>
+                    <button
+                      onClick={() => setShowBroadcastModal(true)}
+                      className="flex items-center gap-1.5 border border-[#5f6368] hover:border-[#8ab4f8] text-xs font-bold rounded px-3 py-1.5 text-[#e8eaed] transition-colors cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Broadcast Email
+                    </button>
                   </div>
                 </div>
 
@@ -2010,6 +2086,124 @@ spec:
           </>
         )}
       </main>
+
+      {/* Broadcast Email Modal */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#202124] rounded-2xl shadow-xl border border-[#3c4043] max-w-lg w-full overflow-hidden text-[#e8eaed]">
+            <div className="bg-[#2a2b2f] px-5 py-4 border-b border-[#3c4043] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#8ab4f8]" />
+                <h3 className="font-bold text-sm">Broadcast Email to Sellers</h3>
+              </div>
+              <button
+                onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); setBroadcastError(null); }}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5">
+              <div className="flex gap-2 bg-[#2a2b2f] p-1 rounded-lg w-fit">
+                <button
+                  onClick={() => setBroadcastMode("text")}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+                    broadcastMode === "text" ? "bg-[#8ab4f8] text-[#1a1a1a]" : "text-[#9aa0a6] hover:text-white"
+                  }`}
+                >
+                  Plain Text
+                </button>
+                <button
+                  onClick={() => setBroadcastMode("html")}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+                    broadcastMode === "html" ? "bg-[#8ab4f8] text-[#1a1a1a]" : "text-[#9aa0a6] hover:text-white"
+                  }`}
+                >
+                  Custom HTML
+                </button>
+              </div>
+
+              <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
+                {broadcastMode === "text" ? (
+                  <>Simple messages — each line becomes a paragraph, auto-wrapped in your TamuBah brand template.</>
+                ) : (
+                  <>Paste a complete HTML email (e.g. one of your branded templates) — sent exactly as-is, no extra wrapping.</>
+                )}
+                {" "}Use <code className="bg-[#2a2b2f] px-1 rounded">{"{{ownerName}}"}</code> and <code className="bg-[#2a2b2f] px-1 rounded">{"{{businessName}}"}</code> anywhere — each seller gets their own personalized copy.
+              </p>
+
+              {broadcastError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-3 py-2 rounded-lg text-xs">{broadcastError}</div>
+              )}
+              {broadcastResult && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-lg text-xs">{broadcastResult}</div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-1.5">Send to</label>
+                <select
+                  value={broadcastPlanFilter}
+                  onChange={(e) => setBroadcastPlanFilter(e.target.value)}
+                  className="w-full border border-[#5f6368] text-xs rounded bg-[#202124] p-2 focus:outline-none focus:border-[#8ab4f8] text-[#e8eaed]"
+                >
+                  <option value="all">All Approved Sellers</option>
+                  <option value="founding">Founding Sellers</option>
+                  <option value="trial">Trial Sellers</option>
+                  <option value="paid">Paying Sellers</option>
+                  <option value="expired">Expired Sellers</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-1.5">Subject</label>
+                <input
+                  type="text"
+                  value={broadcastSubject}
+                  onChange={(e) => setBroadcastSubject(e.target.value)}
+                  placeholder="e.g. New feature on TamuBah, {{businessName}}!"
+                  className="w-full border border-[#5f6368] text-xs rounded bg-[#202124] p-2.5 focus:outline-none focus:border-[#8ab4f8] text-[#e8eaed]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-1.5">
+                  {broadcastMode === "text" ? "Message" : "HTML Template"}
+                </label>
+                <textarea
+                  rows={broadcastMode === "text" ? 6 : 10}
+                  value={broadcastBody}
+                  onChange={(e) => setBroadcastBody(e.target.value)}
+                  placeholder={
+                    broadcastMode === "text"
+                      ? "Hi {{ownerName}},\n\nWrite your message here..."
+                      : "<table>...paste your full HTML email template here...</table>"
+                  }
+                  className="w-full border border-[#5f6368] text-xs rounded bg-[#202124] p-2.5 focus:outline-none focus:border-[#8ab4f8] text-[#e8eaed] resize-none font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePreviewBroadcast}
+                  disabled={!broadcastBody.trim()}
+                  className="flex-1 border border-[#5f6368] hover:border-[#8ab4f8] text-[#e8eaed] font-bold py-2.5 rounded-lg text-xs transition-colors disabled:opacity-40 cursor-pointer"
+                >
+                  Preview in New Tab
+                </button>
+                <button
+                  onClick={handleSendBroadcast}
+                  disabled={broadcastSending}
+                  className="flex-1 bg-[#8ab4f8] hover:bg-[#729fee] text-[#1a1a1a] font-bold py-2.5 rounded-lg text-xs transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {broadcastSending ? "Sending..." : "Send Broadcast"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
