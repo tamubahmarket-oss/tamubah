@@ -160,6 +160,39 @@ create index if not exists idx_stories_seller_id on stories(seller_id);
 create index if not exists idx_stories_expires_at on stories(expires_at);
 
 -- ---------------------------------------------------------------------------
+-- community forum — Reddit-style discussion space for registered/approved
+-- sellers to discuss business, exchange ideas, and share stories.
+-- ---------------------------------------------------------------------------
+create table if not exists community_topics (
+  id           text primary key,
+  seller_id    text not null references sellers(id) on delete cascade,
+  title        text not null,
+  body         text not null,
+  category     text not null default 'General Discussion',
+  created_at   timestamptz not null default now()
+);
+
+create table if not exists community_replies (
+  id           text primary key,
+  topic_id     text not null references community_topics(id) on delete cascade,
+  seller_id    text not null references sellers(id) on delete cascade,
+  body         text not null,
+  created_at   timestamptz not null default now()
+);
+
+create table if not exists community_votes (
+  topic_id     text not null references community_topics(id) on delete cascade,
+  seller_id    text not null references sellers(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  primary key (topic_id, seller_id)
+);
+
+create index if not exists idx_community_topics_seller_id on community_topics(seller_id);
+create index if not exists idx_community_topics_created_at on community_topics(created_at desc);
+create index if not exists idx_community_replies_topic_id on community_replies(topic_id);
+create index if not exists idx_community_votes_topic_id on community_votes(topic_id);
+
+-- ---------------------------------------------------------------------------
 -- reviews
 -- ---------------------------------------------------------------------------
 create table if not exists reviews (
@@ -257,3 +290,6 @@ alter table app_stats       enable row level security;
 alter table publish_requests enable row level security;
 alter table receipts        enable row level security;
 alter table stories         enable row level security;
+alter table community_topics  enable row level security;
+alter table community_replies enable row level security;
+alter table community_votes   enable row level security;

@@ -33,6 +33,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "TamuBah <support@tamubah.com>";
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://www.tamubah.com";
+const COMMUNITY_CATEGORIES = ["General Discussion", "Business Tips", "Marketing & Sales", "Success Stories", "Questions & Help"];
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error(
@@ -201,10 +202,10 @@ async function migrateBase64ImagesToStorage() {
 // If RESEND_API_KEY isn't set, sends are silently skipped and logged, so the
 // app keeps working locally/without email configured.
 // ---------------------------------------------------------------------------
-async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
   if (!RESEND_API_KEY) {
     console.log(`[email skipped — no RESEND_API_KEY set] would have sent "${subject}" to ${to}`);
-    return;
+    return false;
   }
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -218,9 +219,12 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
     if (!res.ok) {
       const body = await res.text();
       console.error(`Resend send failed (${res.status}) to ${to}:`, body);
+      return false;
     }
+    return true;
   } catch (err: any) {
     console.error(`Failed to send email to ${to}:`, err.message);
+    return false;
   }
 }
 
@@ -714,6 +718,261 @@ async function startServer() {
     } catch (err: any) {
       console.error("DELETE /api/stories/:id", err);
       res.status(500).json({ error: "Failed to delete story." });
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // COMMUNITY FORUM — Reddit-style discussion space, approved sellers only
+  // ---------------------------------------------------------------------
+
+  async function requireApprovedSeller(sellerId: string): Promise<{ status: number; error: string } | null> {
+    if (!sellerId) return { status: 400, error: "sellerId is required." };
+    const { data: seller } = await supabase.from("sellers").select("id, is_approved").eq("id", sellerId).maybeSingle();
+    if (!seller) return { status: 403, error: "Unauthorized. Seller account not found." };
+    if (!seller.is_approved) return { status: 403, error: "Only approved sellers can access the community." };
+    return null;
+  }
+
+  async function enrichCommunityAuthors<T extends { seller_id: string }>(rows: T[]) {
+    const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
+    const { data: sellers } = sellerIds.length
+      ? await supabase.from("sellers").select("id, business_name, logo_url, verification_tier").in("id", sellerIds)
+      : { data: [] as any[] };
+    return new Map((sellers || []).map((s: any) => [s.id, s]));
+  }
+
+  // List topics — requires an approved seller to view (community is members-only)
+  app.get("/api/community/topics", async (req, res) => {
+    try {
+      const { sellerId, sort, category } = req.query;
+      const check = await requireApprovedSeller(sellerId as string);
+      if (check) return res.status(check.status).json({ error: check.error });
+
+      let query = supabase.from("community_topics").select("*");
+      if (category && category !== "all") query = query.eq("category", category);
+      const { data: topics, error } = await query.order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const topicIds = (topics || []).map((t: any) => t.id);
+      const [{ data: replies }, { data: votes }] = await Promise.all([
+        topicIds.length ? supabase.from("community_replies").select("topic_id").in("topic_id", topicIds) : Promise.resolve({ data: [] as any[] }),
+        topicIds.length ? supabase.from("community_votes").select("topic_id, seller_id").in("topic_id", topicIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+
+      const replyCountByTopic = new Map<string, number>();
+      (replies || []).forEach((r: any) => replyCountByTopic.set(r.topic_id, (replyCountByTopic.get(r.topic_id) || 0) + 1));
+      const voteCountByTopic = new Map<string, number>();
+      const votedByCurrentSeller = new Set<string>();
+      (votes || []).forEach((v: any) => {
+        voteCountByTopic.set(v.topic_id, (voteCountByTopic.get(v.topic_id) || 0) + 1);
+        if (v.seller_id === sellerId) votedByCurrentSeller.add(v.topic_id);
+      });
+
+      const sellerById = await enrichCommunityAuthors(topics || []);
+
+      let enriched = (topics || []).map((t: any) => ({
+        id: t.id,
+        sellerId: t.seller_id,
+        title: t.title,
+        body: t.body,
+        category: t.category,
+        createdAt: t.created_at,
+        replyCount: replyCountByTopic.get(t.id) || 0,
+        voteCount: voteCountByTopic.get(t.id) || 0,
+        hasVoted: votedByCurrentSeller.has(t.id),
+        businessName: sellerById.get(t.seller_id)?.business_name || "Unknown Seller",
+        sellerLogoUrl: sellerById.get(t.seller_id)?.logo_url || undefined,
+        sellerVerificationTier: sellerById.get(t.seller_id)?.verification_tier || "None",
+      }));
+
+      if (sort === "top") {
+        enriched = enriched.sort((a, b) => b.voteCount - a.voteCount);
+      }
+
+      res.json(enriched);
+    } catch (err: any) {
+      console.error("GET /api/community/topics", err);
+      res.status(500).json({ error: "Failed to load community topics." });
+    }
+  });
+
+  app.post("/api/community/topics", async (req, res) => {
+    try {
+      const { sellerId, title, body, category } = req.body;
+      const check = await requireApprovedSeller(sellerId);
+      if (check) return res.status(check.status).json({ error: check.error });
+      if (!title || !title.trim() || !body || !body.trim()) {
+        return res.status(400).json({ error: "Title and body are required." });
+      }
+
+      const newTopic = {
+        id: "topic_" + Math.random().toString(36).substr(2, 10),
+        seller_id: sellerId,
+        title: String(title).trim().slice(0, 150),
+        body: String(body).trim().slice(0, 5000),
+        category: COMMUNITY_CATEGORIES.includes(category) ? category : "General Discussion",
+      };
+      const { data: inserted, error } = await supabase.from("community_topics").insert(newTopic).select("*").single();
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        topic: { id: inserted.id, sellerId: inserted.seller_id, title: inserted.title, body: inserted.body, category: inserted.category, createdAt: inserted.created_at, replyCount: 0, voteCount: 0, hasVoted: false },
+      });
+    } catch (err: any) {
+      console.error("POST /api/community/topics", err);
+      res.status(500).json({ error: "Failed to create topic." });
+    }
+  });
+
+  // Single topic + all its replies
+  app.get("/api/community/topics/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.query;
+      const check = await requireApprovedSeller(sellerId as string);
+      if (check) return res.status(check.status).json({ error: check.error });
+
+      const { data: topic } = await supabase.from("community_topics").select("*").eq("id", id).maybeSingle();
+      if (!topic) return res.status(404).json({ error: "Topic not found." });
+
+      const [{ data: replies }, { data: votes }] = await Promise.all([
+        supabase.from("community_replies").select("*").eq("topic_id", id).order("created_at", { ascending: true }),
+        supabase.from("community_votes").select("seller_id").eq("topic_id", id),
+      ]);
+
+      const allRows = [topic, ...(replies || [])];
+      const sellerById = await enrichCommunityAuthors(allRows as any);
+
+      res.json({
+        topic: {
+          id: topic.id,
+          sellerId: topic.seller_id,
+          title: topic.title,
+          body: topic.body,
+          category: topic.category,
+          createdAt: topic.created_at,
+          replyCount: (replies || []).length,
+          voteCount: (votes || []).length,
+          hasVoted: (votes || []).some((v: any) => v.seller_id === sellerId),
+          businessName: sellerById.get(topic.seller_id)?.business_name || "Unknown Seller",
+          sellerLogoUrl: sellerById.get(topic.seller_id)?.logo_url || undefined,
+          sellerVerificationTier: sellerById.get(topic.seller_id)?.verification_tier || "None",
+        },
+        replies: (replies || []).map((r: any) => ({
+          id: r.id,
+          topicId: r.topic_id,
+          sellerId: r.seller_id,
+          body: r.body,
+          createdAt: r.created_at,
+          businessName: sellerById.get(r.seller_id)?.business_name || "Unknown Seller",
+          sellerLogoUrl: sellerById.get(r.seller_id)?.logo_url || undefined,
+          sellerVerificationTier: sellerById.get(r.seller_id)?.verification_tier || "None",
+        })),
+      });
+    } catch (err: any) {
+      console.error("GET /api/community/topics/:id", err);
+      res.status(500).json({ error: "Failed to load topic." });
+    }
+  });
+
+  app.post("/api/community/topics/:id/replies", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId, body } = req.body;
+      const check = await requireApprovedSeller(sellerId);
+      if (check) return res.status(check.status).json({ error: check.error });
+      if (!body || !body.trim()) return res.status(400).json({ error: "Reply cannot be empty." });
+
+      const { data: topic } = await supabase.from("community_topics").select("id").eq("id", id).maybeSingle();
+      if (!topic) return res.status(404).json({ error: "Topic not found." });
+
+      const newReply = {
+        id: "reply_" + Math.random().toString(36).substr(2, 10),
+        topic_id: id,
+        seller_id: sellerId,
+        body: String(body).trim().slice(0, 3000),
+      };
+      const { data: inserted, error } = await supabase.from("community_replies").insert(newReply).select("*").single();
+      if (error) throw error;
+
+      const { data: seller } = await supabase.from("sellers").select("business_name, logo_url, verification_tier").eq("id", sellerId).maybeSingle();
+
+      res.json({
+        success: true,
+        reply: {
+          id: inserted.id,
+          topicId: inserted.topic_id,
+          sellerId: inserted.seller_id,
+          body: inserted.body,
+          createdAt: inserted.created_at,
+          businessName: seller?.business_name || "Unknown Seller",
+          sellerLogoUrl: seller?.logo_url || undefined,
+          sellerVerificationTier: seller?.verification_tier || "None",
+        },
+      });
+    } catch (err: any) {
+      console.error("POST /api/community/topics/:id/replies", err);
+      res.status(500).json({ error: "Failed to post reply." });
+    }
+  });
+
+  // Toggle upvote on a topic
+  app.post("/api/community/topics/:id/vote", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.body;
+      const check = await requireApprovedSeller(sellerId);
+      if (check) return res.status(check.status).json({ error: check.error });
+
+      const { data: existing } = await supabase.from("community_votes").select("*").eq("topic_id", id).eq("seller_id", sellerId).maybeSingle();
+
+      if (existing) {
+        await supabase.from("community_votes").delete().eq("topic_id", id).eq("seller_id", sellerId);
+        const { count } = await supabase.from("community_votes").select("*", { count: "exact", head: true }).eq("topic_id", id);
+        return res.json({ success: true, voted: false, voteCount: count || 0 });
+      } else {
+        await supabase.from("community_votes").insert({ topic_id: id, seller_id: sellerId });
+        const { count } = await supabase.from("community_votes").select("*", { count: "exact", head: true }).eq("topic_id", id);
+        return res.json({ success: true, voted: true, voteCount: count || 0 });
+      }
+    } catch (err: any) {
+      console.error("POST /api/community/topics/:id/vote", err);
+      res.status(500).json({ error: "Failed to update vote." });
+    }
+  });
+
+  app.delete("/api/community/topics/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.query;
+      const { data: topic } = await supabase.from("community_topics").select("seller_id").eq("id", id).maybeSingle();
+      if (!topic) return res.status(404).json({ error: "Topic not found." });
+      if (topic.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to delete this topic." });
+
+      const { error } = await supabase.from("community_topics").delete().eq("id", id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("DELETE /api/community/topics/:id", err);
+      res.status(500).json({ error: "Failed to delete topic." });
+    }
+  });
+
+  app.delete("/api/community/replies/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId } = req.query;
+      const { data: reply } = await supabase.from("community_replies").select("seller_id").eq("id", id).maybeSingle();
+      if (!reply) return res.status(404).json({ error: "Reply not found." });
+      if (reply.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to delete this reply." });
+
+      const { error } = await supabase.from("community_replies").delete().eq("id", id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("DELETE /api/community/replies/:id", err);
+      res.status(500).json({ error: "Failed to delete reply." });
     }
   });
 
@@ -1913,7 +2172,14 @@ async function startServer() {
           { ownerName: updated.owner_name, businessName: updated.business_name },
           update.plan_status
         );
-        sendEmail({ to: updated.email, subject, html });
+        sendEmail({ to: updated.email, subject, html }).then((ok) => {
+          addAdminLog(
+            ok ? "welcome_email_sent" : "welcome_email_failed",
+            ok
+              ? `Sent welcome email to ${updated.business_name} (${updated.email}).`
+              : `Failed to send welcome email to ${updated.business_name} (${updated.email}) — check RESEND_API_KEY is set and the domain is verified.`
+          );
+        });
       }
 
       res.json({ success: true, seller: sellerToApi(updated as SellerRow) });

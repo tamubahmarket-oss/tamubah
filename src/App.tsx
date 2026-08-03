@@ -5,7 +5,7 @@ import { useLanguage } from "./lib/LanguageContext";
 import { 
   ShoppingBag, Store, User, ChevronRight, MapPin, 
   CheckCircle, Plus, Info, Landmark, HelpCircle, ArrowRight, Home,
-  Mail, Globe
+  Mail, Globe, Users
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "./types";
 import MarketGrid from "./components/MarketGrid";
@@ -13,10 +13,11 @@ import ShopDashboard from "./components/ShopDashboard";
 import SellerList from "./components/SellerList";
 import PendingApproval from "./components/PendingApproval";
 import ReceiptView from "./components/ReceiptView";
+import CommunityForum from "./components/CommunityForum";
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"market" | "sellers" | "shop">(() => {
+  const [activeTab, setActiveTab] = useState<"market" | "sellers" | "shop" | "community">(() => {
     const path = window.location.pathname.replace(/^\/+/, "").split("/")[0];
     return path === "sellers" ? "sellers" : "market";
   });
@@ -56,6 +57,8 @@ export default function App() {
       setActiveTab("shop");
     } else if (tabParam === "sellers") {
       setActiveTab("sellers");
+    } else if (tabParam === "community") {
+      setActiveTab("community");
     }
     if (tabParam) {
       window.history.replaceState({}, "", window.location.pathname);
@@ -64,7 +67,7 @@ export default function App() {
 
   // Force activeTab to "market" if not logged in
   useEffect(() => {
-    if (!currentSeller && activeTab === "shop") {
+    if (!currentSeller && (activeTab === "shop" || activeTab === "community")) {
       setActiveTab("market");
     }
   }, [currentSeller, activeTab]);
@@ -190,6 +193,20 @@ export default function App() {
                 <User className="w-3.5 h-3.5" />
                 {t("local_sellers")}
               </button>
+              {currentSeller && currentSeller.isApproved && (
+                <button
+                  id="nav-tab-community"
+                  onClick={() => setActiveTab("community")}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "community"
+                      ? "bg-white text-emerald-800 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  Community
+                </button>
+              )}
               {currentSeller && (
                 <button
                   id="nav-tab-shop"
@@ -291,6 +308,20 @@ export default function App() {
             <User className="w-4 h-4" />
             Sellers
           </button>
+          {currentSeller && currentSeller.isApproved && (
+            <button
+              id="mobile-nav-community"
+              onClick={() => setActiveTab("community")}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "community"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold"
+                  : "text-slate-500"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Community
+            </button>
+          )}
           {currentSeller && (
             <button
               id="mobile-nav-shop"
@@ -323,6 +354,16 @@ export default function App() {
             products={products} 
             onRefreshProducts={fetchProducts}
           />
+        ) : activeTab === "community" ? (
+          currentSeller && currentSeller.isApproved ? (
+            <div className="max-w-7xl mx-auto px-4 py-8">
+              <CommunityForum seller={currentSeller} />
+            </div>
+          ) : (
+            <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400">
+              Please sign in as an approved seller to access the Community.
+            </div>
+          )
         ) : (
           /* Shop Tab router */
           currentSeller ? (

@@ -80,6 +80,40 @@ export interface ReceiptItem {
   lineTotal: number;
 }
 
+export const COMMUNITY_CATEGORIES = [
+  "General Discussion",
+  "Business Tips",
+  "Marketing & Sales",
+  "Success Stories",
+  "Questions & Help",
+];
+
+export interface CommunityTopic {
+  id: string;
+  sellerId: string;
+  title: string;
+  body: string;
+  category: string;
+  createdAt: string;
+  replyCount: number;
+  voteCount: number;
+  hasVoted: boolean;
+  businessName?: string;
+  sellerLogoUrl?: string;
+  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+}
+
+export interface CommunityReply {
+  id: string;
+  topicId: string;
+  sellerId: string;
+  body: string;
+  createdAt: string;
+  businessName?: string;
+  sellerLogoUrl?: string;
+  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+}
+
 export interface Story {
   id: string;
   sellerId: string;
