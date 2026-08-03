@@ -433,6 +433,27 @@ spec:
     }
   };
 
+  const handleToggleOfficial = async (sellerId: string, currentValue: boolean) => {
+    try {
+      setActionLoading(`official-${sellerId}`);
+      const res = await fetch(`/api/admin/sellers/${sellerId}/official`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isOfficial: !currentValue })
+      });
+      if (res.ok) {
+        await fetchAdminData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to update official status.");
+      }
+    } catch (error) {
+      console.error("Error updating official status", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDeleteSeller = async (sellerId: string, businessName: string) => {
     const confirmed = window.confirm(`Delete merchant "${businessName}" and all associated listings? This action cannot be undone.`);
     if (!confirmed) return;
@@ -1382,6 +1403,20 @@ spec:
                                   <option value="paid">Paid (RM20/mo received)</option>
                                   <option value="expired">Expired</option>
                                 </select>
+                              )}
+                              {seller.isApproved && (
+                                <button
+                                  onClick={() => handleToggleOfficial(seller.id, !!(seller as any).isOfficial)}
+                                  disabled={actionLoading === `official-${seller.id}`}
+                                  title="Mark as the official TamuBah account — shows a special badge in the Community forum"
+                                  className={`mt-1.5 block w-full text-[9px] font-bold rounded px-1.5 py-1 border transition-colors cursor-pointer ${
+                                    (seller as any).isOfficial
+                                      ? "bg-emerald-500/15 text-[#81c995] border-[#81c995]/30"
+                                      : "bg-transparent text-[#9aa0a6] border-[#5f6368] hover:border-[#8ab4f8]"
+                                  }`}
+                                >
+                                  {(seller as any).isOfficial ? "★ Official TamuBah Account" : "Mark as Official"}
+                                </button>
                               )}
                             </td>
                             <td className="py-4 px-4 text-right">

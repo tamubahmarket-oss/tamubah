@@ -53,6 +53,7 @@ create table if not exists sellers (
   -- while recent, without needing a full product listing.
   latest_update         text default '',
   latest_update_at      timestamptz,
+  is_official           boolean not null default false,
   created_at            timestamptz not null default now()
 );
 
@@ -63,6 +64,7 @@ alter table sellers add column if not exists trial_ends_at timestamptz;
 alter table sellers add column if not exists next_payment_due timestamptz;
 alter table sellers add column if not exists latest_update text default '';
 alter table sellers add column if not exists latest_update_at timestamptz;
+alter table sellers add column if not exists is_official boolean not null default false;
 
 create index if not exists idx_sellers_location on sellers(location);
 create index if not exists idx_sellers_category on sellers(category);
