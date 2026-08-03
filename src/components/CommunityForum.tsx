@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   MessageSquare, ArrowBigUp, Plus, X, ShieldCheck, Clock,
-  ChevronLeft, Send, Trash2, Users, TrendingUp
+  ChevronLeft, Send, Trash2, Users, TrendingUp, BadgeCheck
 } from "lucide-react";
 import { Seller, CommunityTopic, CommunityReply, COMMUNITY_CATEGORIES } from "../types";
 
@@ -21,7 +21,15 @@ function timeAgo(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-MY", { day: "numeric", month: "short" });
 }
 
-function VerifiedBadge({ tier }: { tier?: string }) {
+function VerifiedBadge({ tier, isOfficial }: { tier?: string; isOfficial?: boolean }) {
+  if (isOfficial) {
+    return (
+      <span className="inline-flex items-center gap-1 bg-emerald-600 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0">
+        <BadgeCheck className="w-2.5 h-2.5 shrink-0" />
+        TamuBah Team
+      </span>
+    );
+  }
   if (tier === "Gold") return <ShieldCheck className="w-3 h-3 shrink-0" style={{ color: "#d4af37" }} />;
   if (tier === "Silver") return <ShieldCheck className="w-3 h-3 shrink-0" style={{ color: "#c0c0c0" }} />;
   if (tier === "Bronze") return <ShieldCheck className="w-3 h-3 shrink-0" style={{ color: "#cd7f32" }} />;
@@ -234,7 +242,7 @@ export default function CommunityForum({ seller }: CommunityForumProps) {
                       <div>
                         <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
                           {activeTopic.businessName}
-                          <VerifiedBadge tier={activeTopic.sellerVerificationTier} />
+                          <VerifiedBadge tier={activeTopic.sellerVerificationTier} isOfficial={activeTopic.sellerIsOfficial} />
                         </span>
                         <span className="text-[10px] text-slate-400 flex items-center gap-1">
                           <Clock className="w-2.5 h-2.5" /> {timeAgo(activeTopic.createdAt)}
@@ -269,7 +277,7 @@ export default function CommunityForum({ seller }: CommunityForumProps) {
                       <div>
                         <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
                           {r.businessName}
-                          <VerifiedBadge tier={r.sellerVerificationTier} />
+                          <VerifiedBadge tier={r.sellerVerificationTier} isOfficial={r.sellerIsOfficial} />
                         </span>
                         <span className="text-[10px] text-slate-400">{timeAgo(r.createdAt)}</span>
                       </div>
@@ -417,7 +425,7 @@ export default function CommunityForum({ seller }: CommunityForumProps) {
                   <span className="flex items-center gap-1 font-semibold text-slate-600">
                     <Avatar name={t.businessName} logoUrl={t.sellerLogoUrl} />
                     {t.businessName}
-                    <VerifiedBadge tier={t.sellerVerificationTier} />
+                    <VerifiedBadge tier={t.sellerVerificationTier} isOfficial={t.sellerIsOfficial} />
                   </span>
                   <span className="flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {timeAgo(t.createdAt)}</span>
                   <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> {t.replyCount}</span>

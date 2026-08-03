@@ -23,6 +23,7 @@ export interface Seller {
   nextPaymentDue?: string;
   latestUpdate?: string;
   latestUpdateAt?: string;
+  isOfficial?: boolean;
 }
 
 export interface Product {
@@ -101,6 +102,7 @@ export interface CommunityTopic {
   businessName?: string;
   sellerLogoUrl?: string;
   sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerIsOfficial?: boolean;
 }
 
 export interface CommunityReply {
@@ -112,6 +114,7 @@ export interface CommunityReply {
   businessName?: string;
   sellerLogoUrl?: string;
   sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerIsOfficial?: boolean;
 }
 
 export interface Story {

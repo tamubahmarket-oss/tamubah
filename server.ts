@@ -433,6 +433,7 @@ interface SellerRow {
   next_payment_due: string | null;
   latest_update: string | null;
   latest_update_at: string | null;
+  is_official: boolean;
   created_at: string;
 }
 
@@ -476,6 +477,7 @@ function sellerToApi(s: SellerRow, extra: Record<string, any> = {}) {
     nextPaymentDue: s.next_payment_due || undefined,
     latestUpdate: s.latest_update || undefined,
     latestUpdateAt: s.latest_update_at || undefined,
+    isOfficial: !!s.is_official,
     ...extra,
   };
 }
@@ -736,7 +738,7 @@ async function startServer() {
   async function enrichCommunityAuthors<T extends { seller_id: string }>(rows: T[]) {
     const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
     const { data: sellers } = sellerIds.length
-      ? await supabase.from("sellers").select("id, business_name, logo_url, verification_tier").in("id", sellerIds)
+      ? await supabase.from("sellers").select("id, business_name, logo_url, verification_tier, is_official").in("id", sellerIds)
       : { data: [] as any[] };
     return new Map((sellers || []).map((s: any) => [s.id, s]));
   }
@@ -783,6 +785,7 @@ async function startServer() {
         businessName: sellerById.get(t.seller_id)?.business_name || "Unknown Seller",
         sellerLogoUrl: sellerById.get(t.seller_id)?.logo_url || undefined,
         sellerVerificationTier: sellerById.get(t.seller_id)?.verification_tier || "None",
+        sellerIsOfficial: !!sellerById.get(t.seller_id)?.is_official,
       }));
 
       if (sort === "top") {
@@ -858,6 +861,7 @@ async function startServer() {
           businessName: sellerById.get(topic.seller_id)?.business_name || "Unknown Seller",
           sellerLogoUrl: sellerById.get(topic.seller_id)?.logo_url || undefined,
           sellerVerificationTier: sellerById.get(topic.seller_id)?.verification_tier || "None",
+          sellerIsOfficial: !!sellerById.get(topic.seller_id)?.is_official,
         },
         replies: (replies || []).map((r: any) => ({
           id: r.id,
@@ -868,6 +872,7 @@ async function startServer() {
           businessName: sellerById.get(r.seller_id)?.business_name || "Unknown Seller",
           sellerLogoUrl: sellerById.get(r.seller_id)?.logo_url || undefined,
           sellerVerificationTier: sellerById.get(r.seller_id)?.verification_tier || "None",
+          sellerIsOfficial: !!sellerById.get(r.seller_id)?.is_official,
         })),
       });
     } catch (err: any) {
@@ -896,7 +901,7 @@ async function startServer() {
       const { data: inserted, error } = await supabase.from("community_replies").insert(newReply).select("*").single();
       if (error) throw error;
 
-      const { data: seller } = await supabase.from("sellers").select("business_name, logo_url, verification_tier").eq("id", sellerId).maybeSingle();
+      const { data: seller } = await supabase.from("sellers").select("business_name, logo_url, verification_tier, is_official").eq("id", sellerId).maybeSingle();
 
       res.json({
         success: true,
@@ -909,6 +914,7 @@ async function startServer() {
           businessName: seller?.business_name || "Unknown Seller",
           sellerLogoUrl: seller?.logo_url || undefined,
           sellerVerificationTier: seller?.verification_tier || "None",
+          sellerIsOfficial: !!seller?.is_official,
         },
       });
     } catch (err: any) {
@@ -2364,6 +2370,31 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/admin/sellers/:id/plan", err);
       res.status(500).json({ error: "Failed to update seller plan." });
+    }
+  });
+
+  // Marks a seller account as the "official" TamuBah presence — shows a
+  // distinct badge wherever they post in the Community forum. Meant for a
+  // single dedicated account (e.g. business name "TamuBah"), not regular sellers.
+  app.post("/api/admin/sellers/:id/official", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isOfficial } = req.body;
+
+      const { data: updated, error } = await supabase
+        .from("sellers")
+        .update({ is_official: !!isOfficial })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      if (!updated) return res.status(404).json({ error: "Seller not found." });
+
+      await addAdminLog("seller_official_changed", `${isOfficial ? "Marked" : "Unmarked"} ${updated.business_name} as the official TamuBah account.`);
+      res.json({ success: true, seller: sellerToApi(updated as SellerRow) });
+    } catch (err: any) {
+      console.error("POST /api/admin/sellers/:id/official", err);
+      res.status(500).json({ error: "Failed to update official status." });
     }
   });
 
