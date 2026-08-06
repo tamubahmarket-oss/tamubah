@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Search, MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
-  ExternalLink, SlidersHorizontal, ArrowUpRight, HelpCircle,
+  MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
+  ExternalLink, Grid, ArrowUpRight, HelpCircle,
   X, Building, Calendar, User, Briefcase, FileText, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
   Share2, Check, Store, Star, CheckCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Product, SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "../types";
+import { Product, SABAH_LOCATIONS } from "../types";
 import ShareModal from "./ShareModal";
 import { useLanguage } from "../lib/LanguageContext";
 import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
+import { useCategories } from "../lib/categoryStore";
 import StoryBar from "./StoryBar";
 
 interface MarketGridProps {
@@ -18,6 +19,7 @@ interface MarketGridProps {
   onRefreshProducts: () => void;
   selectedLocation?: string;
   onLocationChange?: (location: string) => void;
+  initialSearchQuery?: string;
 }
 
 export default function MarketGrid({ 
@@ -25,10 +27,13 @@ export default function MarketGrid({
   loading, 
   onRefreshProducts,
   selectedLocation: propSelectedLocation,
-  onLocationChange
+  onLocationChange,
+  initialSearchQuery
 }: MarketGridProps) {
   const { t, language } = useLanguage();
+  const { categories: BUSINESS_CATEGORIES } = useCategories();
   const [searchQuery, setSearchQuery] = useState(() => {
+    if (initialSearchQuery) return initialSearchQuery;
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       return params.get("search") || "";
@@ -48,7 +53,6 @@ export default function MarketGrid({
     }
   };
 
-  const [showFilters, setShowFilters] = useState(true);
   const [selectedSellerProfile, setSelectedSellerProfile] = useState<Product | null>(null);
 
   // Unified share modal state
@@ -535,27 +539,35 @@ export default function MarketGrid({
         </div>
       </div>
 
-      {/* Main Search and Filter Section */}
-      <div className="bg-white rounded-3xl p-5 md:p-6 shadow-md border border-slate-100 mb-8">
-        <div className="flex flex-col md:flex-row gap-4 items-center">
-          
-          {/* Search Input */}
-          <div className="relative w-full md:flex-1">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-              <Search className="w-5 h-5" />
-            </span>
-            <input
-              id="market-search-input"
-              type="text"
-              placeholder={t("search_placeholder")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm"
-            />
+      {/* Minimalist Filter Bar: category icons + location */}
+      <div className="bg-white rounded-3xl p-4 md:p-5 shadow-md border border-slate-100 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+
+          {/* Category icons — icon only, no labels/toggle */}
+          <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
+            {categoryChips.map((cat) => (
+              <button
+                key={cat}
+                id={`category-chip-${cat.replace(/\s+/g, "-")}`}
+                onClick={() => setSelectedCategory(cat)}
+                title={cat === "All" ? t("all_categories") : t(cat)}
+                className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center transition-all cursor-pointer border ${
+                  selectedCategory === cat
+                    ? "bg-emerald-600 border-emerald-600 text-white shadow-sm scale-105"
+                    : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {cat === "All" ? (
+                  <Grid className="w-5 h-5" />
+                ) : (
+                  <CategoryIcon category={cat} className="w-6 h-6" />
+                )}
+              </button>
+            ))}
           </div>
 
-          {/* Quick Location Filter Dropdown */}
-          <div className="relative w-full md:w-64">
+          {/* Location */}
+          <div className="relative w-full md:w-56 shrink-0">
             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
               <MapPin className="w-4 h-4" />
             </span>
@@ -563,7 +575,7 @@ export default function MarketGrid({
               id="market-location-select"
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm font-medium appearance-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm font-medium appearance-none"
             >
               <option value="All">{t("all_districts")}</option>
               {SABAH_LOCATIONS.map((loc) => (
@@ -571,47 +583,20 @@ export default function MarketGrid({
               ))}
             </select>
           </div>
-
-          {/* Expand Filters Button */}
-          <button
-            id="toggle-filters-btn"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`w-full md:w-auto px-5 py-3 rounded-2xl border flex items-center justify-center gap-2 text-sm font-semibold transition-all cursor-pointer ${
-              showFilters 
-                ? "bg-slate-900 border-slate-900 text-white" 
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            {t("category_filters")}
-          </button>
         </div>
 
-        {/* Dynamic Category Chips (shown by default or toggleable) */}
-        {showFilters && (
-          <div className="mt-5 pt-5 border-t border-slate-50">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">
-              {t("browse_by_category")}
+        {/* Active search chip (search itself lives in the header) */}
+        {searchQuery && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-full pl-3 pr-1.5 py-1 text-xs font-semibold">
+              {language === "EN" ? "Searching" : "Mencari"}: "{searchQuery}"
+              <button
+                onClick={() => setSearchQuery("")}
+                className="w-4 h-4 rounded-full bg-emerald-100 hover:bg-emerald-200 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
             </span>
-            <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-2.5">
-              {categoryChips.map((cat) => (
-                <button
-                  key={cat}
-                  id={`category-chip-${cat.replace(/\s+/g, "-")}`}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-2 py-3 rounded-2xl transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 border ${
-                    selectedCategory === cat
-                      ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
-                      : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <CategoryIcon category={cat} className="w-9 h-9 shrink-0" />
-                  <span className="text-[10px] font-semibold text-center leading-tight line-clamp-2">
-                    {cat === "All" ? t("all_categories") : t(cat)}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         )}
       </div>
