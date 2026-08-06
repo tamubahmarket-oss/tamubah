@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import tamubahLogo from "./assets/images/traditional_bag_logo_1784122537315.jpg";
 import { useLanguage } from "./lib/LanguageContext";
 import { 
   ShoppingBag, Store, User, ChevronRight, MapPin, 
   CheckCircle, Plus, Info, Landmark, HelpCircle, ArrowRight, Home,
-  Mail, Globe, Users
+  Mail, Globe, Users, Search, Megaphone, ChevronDown, LogOut,
+  Settings, Edit3, ShieldCheck
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "./types";
 import MarketGrid from "./components/MarketGrid";
@@ -14,6 +16,7 @@ import SellerList from "./components/SellerList";
 import PendingApproval from "./components/PendingApproval";
 import ReceiptView from "./components/ReceiptView";
 import CommunityForum from "./components/CommunityForum";
+import { useAnnouncement, markAnnouncementSeen } from "./lib/announcementStore";
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
@@ -27,6 +30,50 @@ export default function App() {
   const [marketLocationFilter, setMarketLocationFilter] = useState<string>("All");
   
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+
+  // Global header search (location, product, or seller) + account dropdown panel
+  const [headerSearchInput, setHeaderSearchInput] = useState<string>("");
+  const [globalSearchQuery, setGlobalSearchQuery] = useState<string>("");
+  const [showAccountPanel, setShowAccountPanel] = useState<boolean>(false);
+  const [showAnnouncementPanel, setShowAnnouncementPanel] = useState<boolean>(false);
+  const accountPanelRef = useRef<HTMLDivElement>(null);
+  const announcementPanelRef = useRef<HTMLDivElement>(null);
+  const { announcement, isUnread: hasUnreadAnnouncement } = useAnnouncement();
+
+  // Close the account/announcement dropdowns when clicking outside of them
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (accountPanelRef.current && !accountPanelRef.current.contains(e.target as Node)) {
+        setShowAccountPanel(false);
+      }
+      if (announcementPanelRef.current && !announcementPanelRef.current.contains(e.target as Node)) {
+        setShowAnnouncementPanel(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleHeaderSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = headerSearchInput.trim();
+    if (!query) return;
+
+    // If the query matches a Sabah district, treat it as a location search
+    const matchedLocation = SABAH_LOCATIONS.find(
+      (loc) => loc.toLowerCase() === query.toLowerCase() || loc.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if (matchedLocation) {
+      setMarketLocationFilter(matchedLocation);
+      setGlobalSearchQuery("");
+      setActiveTab("market");
+    } else {
+      setGlobalSearchQuery(query);
+      setActiveTab("market");
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // If this page was opened via a shared receipt link (?receipt=RCPT_ID),
   // show a standalone printable receipt view instead of the normal app shell.
@@ -115,154 +162,257 @@ export default function App() {
       
       {/* Sticky Header Navbar */}
       <header className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-20 md:h-24 flex items-center justify-between gap-4">
-          
-          {/* Logo Brand & Language Selector */}
-          <div className="flex items-center gap-3 md:gap-4">
-            <div 
-              onClick={() => { window.location.href = "/"; }} 
-              className="flex items-center cursor-pointer select-none group"
-            >
-              <div className="h-14 md:h-16 overflow-hidden rounded-xl bg-white px-2.5 flex items-center justify-center transition-all duration-300">
-                <img 
-                  src={tamubahLogo} 
-                  alt="Digital Tamu Logo" 
-                  className="h-28 md:h-32 object-contain -my-6 group-hover:scale-[1.03] transition-transform duration-300"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center gap-3 md:gap-5">
 
-            {/* Language Selector */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 select-none">
-              <button
-                onClick={() => setLanguage("EN")}
-                className={`px-2 py-1.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                  language === "EN"
-                    ? "bg-white text-emerald-800 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLanguage("BM")}
-                className={`px-2 py-1.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
-                  language === "BM"
-                    ? "bg-white text-emerald-800 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                BM
-              </button>
+          {/* Logo */}
+          <div
+            onClick={() => { window.location.href = "/"; }}
+            className="flex items-center cursor-pointer select-none group shrink-0"
+          >
+            <div className="h-11 md:h-14 overflow-hidden rounded-xl bg-white px-2 flex items-center justify-center transition-all duration-300">
+              <img
+                src={tamubahLogo}
+                alt="Digital Tamu Logo"
+                className="h-22 md:h-28 object-contain -my-5 group-hover:scale-[1.03] transition-transform duration-300"
+                referrerPolicy="no-referrer"
+              />
             </div>
           </div>
 
-          {/* Navigation Tabs (always visible for public pages, seller space accessible if signed in) */}
+          {/* Unified Search — location, products & sellers */}
+          <form onSubmit={handleHeaderSearchSubmit} className="relative flex-1 max-w-xl hidden sm:block">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+              <Search className="w-4 h-4" />
+            </span>
+            <input
+              type="text"
+              value={headerSearchInput}
+              onChange={(e) => setHeaderSearchInput(e.target.value)}
+              placeholder={language === "EN" ? "Search location, products or sellers..." : "Cari lokasi, produk atau penjual..."}
+              className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm text-slate-800"
+            />
+          </form>
+
+          {/* Spacer keeps icon nav pinned right when search is hidden (mobile) */}
+          <div className="flex-1 sm:hidden" />
+
+          {/* Icon-only Navigation */}
           {activeTab !== "shop" && (
-            <nav className="hidden sm:flex items-center bg-slate-100/80 p-1 rounded-2xl border border-slate-200/40">
+            <nav className="hidden sm:flex items-center gap-1 shrink-0">
               <button
                 id="nav-tab-home"
                 onClick={() => { window.location.href = "/"; }}
-                className="px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer text-slate-500 hover:text-slate-800"
+                title={language === "EN" ? "Home" : "Utama"}
+                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer text-slate-500 hover:text-slate-900 hover:bg-slate-100"
               >
-                <Home className="w-3.5 h-3.5" />
-                {language === "EN" ? "Home" : "Utama"}
+                <Home className="w-5 h-5" />
               </button>
               <button
                 id="nav-tab-market"
                 onClick={() => setActiveTab("market")}
-                className={`px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                title={t("explore_market")}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                   activeTab === "market"
-                    ? "bg-white text-emerald-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                {t("explore_market")}
+                <ShoppingBag className="w-5 h-5" />
               </button>
               <button
                 id="nav-tab-sellers"
                 onClick={() => setActiveTab("sellers")}
-                className={`px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                title={t("local_sellers")}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                   activeTab === "sellers"
-                    ? "bg-white text-emerald-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
-                {t("local_sellers")}
+                <User className="w-5 h-5" />
               </button>
               {currentSeller && currentSeller.isApproved && (
                 <button
                   id="nav-tab-community"
                   onClick={() => setActiveTab("community")}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                  title="Community"
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                     activeTab === "community"
-                      ? "bg-white text-emerald-800 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <Users className="w-3.5 h-3.5" />
-                  Community
+                  <Users className="w-5 h-5" />
                 </button>
               )}
               {currentSeller && (
-                <button
-                  id="nav-tab-shop"
-                  onClick={() => setActiveTab("shop")}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === "shop"
-                      ? "bg-white text-emerald-800 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Store className="w-3.5 h-3.5" />
-                  {t("seller_space")}
-                </button>
+                <div className="relative" ref={announcementPanelRef}>
+                  <button
+                    id="nav-tab-announcements"
+                    onClick={() => {
+                      setShowAnnouncementPanel((v) => !v);
+                      if (!showAnnouncementPanel) markAnnouncementSeen();
+                    }}
+                    title={language === "EN" ? "Announcements" : "Pengumuman"}
+                    className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                  >
+                    <Megaphone className="w-5 h-5" />
+                    {hasUnreadAnnouncement && (
+                      <motion.span
+                        className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-white"
+                        animate={{ scale: [1, 1.25, 1] }}
+                        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    )}
+                  </button>
+                  <AnimatePresence>
+                    {showAnnouncementPanel && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden z-50 p-4"
+                      >
+                        <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 mb-2">
+                          <Megaphone className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          {language === "EN" ? "Platform Announcement" : "Pengumuman Platform"}
+                        </h4>
+                        {announcement ? (
+                          <p className="text-xs text-slate-600 leading-relaxed">{announcement.message}</p>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic">
+                            {language === "EN" ? "No announcements right now." : "Tiada pengumuman buat masa ini."}
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
-
             </nav>
           )}
 
-          {/* User Section (Right corner) */}
-          <div className="flex items-center gap-3">
+          {/* Language Selector */}
+          <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 select-none shrink-0">
+            <button
+              onClick={() => setLanguage("EN")}
+              className={`px-2 py-1.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                language === "EN" ? "bg-white text-emerald-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLanguage("BM")}
+              className={`px-2 py-1.5 text-[10px] font-black rounded-md transition-all cursor-pointer ${
+                language === "BM" ? "bg-white text-emerald-800 shadow-xs" : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              BM
+            </button>
+          </div>
+
+          {/* Account (far right) */}
+          <div className="relative shrink-0" ref={accountPanelRef}>
             {currentSeller ? (
-              <div className="flex items-center gap-3">
-                <button
-                  id="header-seller-profile"
-                  onClick={() => setActiveTab("shop")}
-                  className="hidden md:flex flex-col items-end text-right cursor-pointer group"
-                >
-                  <span className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">
-                    {currentSeller.businessName}
-                  </span>
-                  <span className="text-[10px] text-emerald-600 font-semibold">
-                    {t("manage_my_shop")}
-                  </span>
-                </button>
+              <>
                 <button
                   id="dashboard-avatar-btn"
-                  onClick={() => setActiveTab("shop")}
-                  className="w-10 h-10 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer"
-                  title="Go to Shop Dashboard"
+                  onClick={() => setShowAccountPanel((v) => !v)}
+                  className="flex items-center gap-1.5 pl-1.5 pr-2 py-1.5 rounded-full hover:bg-slate-100 transition-all cursor-pointer"
+                  title={currentSeller.businessName}
                 >
-                  <User className="w-4 h-4" />
+                  <span className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs shadow-sm overflow-hidden shrink-0">
+                    {currentSeller.logoUrl ? (
+                      <img src={currentSeller.logoUrl} alt={currentSeller.businessName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      currentSeller.businessName.charAt(0)
+                    )}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform hidden sm:block ${showAccountPanel ? "rotate-180" : ""}`} />
                 </button>
-              </div>
+
+                {/* Dropdown panel — comes down below the avatar */}
+                <AnimatePresence>
+                  {showAccountPanel && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden z-50"
+                    >
+                      <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-700 text-white">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-10 h-10 rounded-full bg-white/15 border border-white/25 flex items-center justify-center font-bold text-sm overflow-hidden shrink-0">
+                            {currentSeller.logoUrl ? (
+                              <img src={currentSeller.logoUrl} alt={currentSeller.businessName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              currentSeller.businessName.charAt(0)
+                            )}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm truncate">{currentSeller.businessName}</p>
+                            <p className="text-[11px] text-emerald-100 truncate flex items-center gap-1">
+                              {currentSeller.verificationTier && currentSeller.verificationTier !== "None" && (
+                                <ShieldCheck className="w-3 h-3 shrink-0" />
+                              )}
+                              {currentSeller.ownerName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-1.5">
+                        <button
+                          onClick={() => { setActiveTab("shop"); setShowAccountPanel(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                        >
+                          <Store className="w-4 h-4 text-emerald-600 shrink-0" />
+                          {t("manage_my_shop")}
+                        </button>
+                        <button
+                          onClick={() => { setActiveTab("shop"); setShowAccountPanel(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                        >
+                          <Edit3 className="w-4 h-4 text-slate-400 shrink-0" />
+                          {language === "EN" ? "Edit Profile" : "Sunting Profil"}
+                        </button>
+                        {currentSeller.isApproved && (
+                          <button
+                            onClick={() => { setActiveTab("community"); setShowAccountPanel(false); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+                          >
+                            <Users className="w-4 h-4 text-slate-400 shrink-0" />
+                            Community
+                          </button>
+                        )}
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button
+                          onClick={() => { setShowAccountPanel(false); handleLogout(); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left"
+                        >
+                          <LogOut className="w-4 h-4 shrink-0" />
+                          {t("logout")}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
             ) : (
               <div className="flex items-center gap-2">
                 <button
                   id="header-login-btn"
                   onClick={() => { window.location.href = "/signin"; }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-950 transition-colors cursor-pointer"
+                  className="px-3 md:px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-950 transition-colors cursor-pointer"
                 >
                   {t("sign_in")}
                 </button>
                 <button
                   id="header-register-btn"
                   onClick={() => { window.location.href = "/register"; }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-4 py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
                 >
                   {t("join_as_seller")}
                 </button>
@@ -271,69 +421,116 @@ export default function App() {
           </div>
 
         </div>
+
+        {/* Mobile search row */}
+        <form onSubmit={handleHeaderSearchSubmit} className="sm:hidden relative px-4 pb-2.5">
+          <span className="absolute inset-y-0 left-0 pl-7 flex items-center text-slate-400 pointer-events-none">
+            <Search className="w-4 h-4" />
+          </span>
+          <input
+            type="text"
+            value={headerSearchInput}
+            onChange={(e) => setHeaderSearchInput(e.target.value)}
+            placeholder={language === "EN" ? "Search location, products or sellers..." : "Cari lokasi, produk atau penjual..."}
+            className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm text-slate-800"
+          />
+        </form>
       </header>
 
-      {/* Mobile Sticky Tab Navigation */}
+      {/* Mobile Sticky Icon-only Tab Navigation */}
       {activeTab !== "shop" && (
-        <div className="sm:hidden sticky top-16 z-30 bg-white/95 border-b border-slate-100 p-2 flex gap-2 shadow-sm">
+        <div className="sm:hidden sticky top-16 z-30 bg-white/95 border-b border-slate-100 p-2 flex gap-1.5 shadow-sm">
           <button
             id="mobile-nav-home"
             onClick={() => { window.location.href = "/"; }}
-            className="flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer text-slate-500"
+            title={language === "EN" ? "Home" : "Utama"}
+            className="flex-1 py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer text-slate-500"
           >
-            <Home className="w-4 h-4" />
-            Home
+            <Home className="w-5 h-5" />
           </button>
           <button
             id="mobile-nav-market"
             onClick={() => setActiveTab("market")}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === "market"
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold"
-                : "text-slate-500"
+            title={t("explore_market")}
+            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+              activeTab === "market" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "text-slate-500"
             }`}
           >
-            <ShoppingBag className="w-4 h-4" />
-            Market
+            <ShoppingBag className="w-5 h-5" />
           </button>
           <button
             id="mobile-nav-sellers"
             onClick={() => setActiveTab("sellers")}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === "sellers"
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold"
-                : "text-slate-500"
+            title={t("local_sellers")}
+            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+              activeTab === "sellers" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "text-slate-500"
             }`}
           >
-            <User className="w-4 h-4" />
-            Sellers
+            <User className="w-5 h-5" />
           </button>
           {currentSeller && currentSeller.isApproved && (
             <button
               id="mobile-nav-community"
               onClick={() => setActiveTab("community")}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === "community"
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold"
-                  : "text-slate-500"
+              title="Community"
+              className={`flex-1 py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                activeTab === "community" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "text-slate-500"
               }`}
             >
-              <Users className="w-4 h-4" />
-              Community
+              <Users className="w-5 h-5" />
             </button>
+          )}
+          {currentSeller && (
+            <div className="relative flex-1" ref={announcementPanelRef}>
+              <button
+                id="mobile-nav-announcements"
+                onClick={() => {
+                  setShowAnnouncementPanel((v) => !v);
+                  if (!showAnnouncementPanel) markAnnouncementSeen();
+                }}
+                title={language === "EN" ? "Announcements" : "Pengumuman"}
+                className="relative w-full py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer text-slate-500"
+              >
+                <Megaphone className="w-5 h-5" />
+                {hasUnreadAnnouncement && (
+                  <span className="absolute top-1.5 right-1/4 w-2 h-2 rounded-full bg-rose-500 border border-white" />
+                )}
+              </button>
+              <AnimatePresence>
+                {showAnnouncementPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 bg-white rounded-2xl border border-slate-100 shadow-xl overflow-hidden z-50 p-4"
+                  >
+                    <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5 mb-2">
+                      <Megaphone className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      {language === "EN" ? "Platform Announcement" : "Pengumuman Platform"}
+                    </h4>
+                    {announcement ? (
+                      <p className="text-xs text-slate-600 leading-relaxed">{announcement.message}</p>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        {language === "EN" ? "No announcements right now." : "Tiada pengumuman buat masa ini."}
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
           {currentSeller && (
             <button
               id="mobile-nav-shop"
               onClick={() => setActiveTab("shop")}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === "shop"
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold"
-                  : "text-slate-500"
+              title={t("seller_space")}
+              className={`flex-1 py-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                activeTab === "shop" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "text-slate-500"
               }`}
             >
-              <Store className="w-4 h-4" />
-              My Shop
+              <Store className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -348,11 +545,13 @@ export default function App() {
             onRefreshProducts={fetchProducts}
             selectedLocation={marketLocationFilter}
             onLocationChange={setMarketLocationFilter}
+            initialSearchQuery={globalSearchQuery}
           />
         ) : activeTab === "sellers" ? (
           <SellerList 
             products={products} 
             onRefreshProducts={fetchProducts}
+            initialSearchQuery={globalSearchQuery}
           />
         ) : activeTab === "community" ? (
           currentSeller && currentSeller.isApproved ? (

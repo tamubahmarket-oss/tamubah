@@ -24,6 +24,7 @@ export interface Seller {
   latestUpdate?: string;
   latestUpdateAt?: string;
   isOfficial?: boolean;
+  businessLink?: string; // optional external link for orders (Google Maps/Forms, website, catalog, etc.)
 }
 
 export interface Product {

@@ -5,10 +5,12 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Settings, Play, Server, FileText,
   ChevronDown, HelpCircle, Bell, User, MoreVertical, Menu, ShieldAlert,
-  Trash2, Wallet, Send, Mail
+  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
+import { useCategories, addCategory, renameCategory, removeCategory, setCategoryColor } from "../lib/categoryStore";
+import { getAnnouncement, setAnnouncement } from "../lib/announcementStore";
 
 interface AdminStats {
   visitorCount: number;
@@ -59,7 +61,15 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "publish" | "logs" | "admins" | "yaml">("metrics");
+  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "publish" | "logs" | "admins" | "yaml" | "categories">("metrics");
+
+  // --- Category management (admin-editable business categories) ---
+  const { categories: adminCategories, colors: adminCategoryColors } = useCategories();
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [announcementDraft, setAnnouncementDraft] = useState<string>(() => getAnnouncement()?.message || "");
+  const [announcementSavedMsg, setAnnouncementSavedMsg] = useState("");
   
   // Search and filter states
   const [sellerSearch, setSellerSearch] = useState("");
@@ -942,6 +952,18 @@ spec:
           }`}
         >
           <span>YAML CONFIG</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("categories")}
+          className={`py-3.5 px-3 font-semibold text-[13px] tracking-wide transition-all whitespace-nowrap cursor-pointer border-b-2 flex items-center gap-1.5 ${
+            activeTab === "categories"
+              ? "border-[#8ab4f8] text-[#8ab4f8] font-bold"
+              : "border-transparent text-[#9aa0a6] hover:text-[#f1f3f4]"
+          }`}
+        >
+          <Tag className="w-3.5 h-3.5" />
+          <span>CATEGORIES & ANNOUNCEMENTS</span>
         </button>
       </div>
 
@@ -2115,6 +2137,158 @@ spec:
                 <div className="bg-[#252526] px-4 py-2 border-t border-slate-800 text-[10px] text-slate-400 font-mono text-right select-none">
                   Line 42, Col 1 &bull; UTF-8 &bull; YAML (Kubernetes Cloud Run Service)
                 </div>
+              </div>
+            )}
+
+            {/* TAB 6: CATEGORY MANAGEMENT + PLATFORM ANNOUNCEMENT */}
+            {activeTab === "categories" && (
+              <div className="space-y-6 animate-in duration-200">
+
+                {/* Business categories */}
+                <section className="bg-[#202124] border border-[#3c4043] rounded-lg shadow-md overflow-hidden">
+                  <div className="px-5 py-4 border-b border-[#3c4043] flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-[#8ab4f8]" />
+                    <h3 className="font-bold text-sm text-[#e8eaed]">Seller Business Categories</h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
+                      Add, rename, recolor, or remove the categories sellers can pick from when they register or edit their shop.
+                      Changes apply instantly across the market, seller directory, and filters for everyone browsing the site.
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {adminCategories.map((cat) => {
+                        const color = adminCategoryColors[cat] || "#64748b";
+                        const isEditing = editingCategory === cat;
+                        return (
+                          <div
+                            key={cat}
+                            className="flex items-center gap-2 bg-[#2a2b2f] border border-[#3c4043] rounded-xl pl-2 pr-1.5 py-1.5"
+                          >
+                            <input
+                              type="color"
+                              value={color}
+                              onChange={(e) => setCategoryColor(cat, e.target.value)}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border border-[#3c4043]"
+                              title="Category color"
+                            />
+                            {isEditing ? (
+                              <input
+                                autoFocus
+                                value={editingCategoryName}
+                                onChange={(e) => setEditingCategoryName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    renameCategory(cat, editingCategoryName);
+                                    setEditingCategory(null);
+                                  } else if (e.key === "Escape") {
+                                    setEditingCategory(null);
+                                  }
+                                }}
+                                className="bg-[#1a1b1e] border border-[#5f6368] rounded px-2 py-1 text-xs text-[#e8eaed] w-32 focus:outline-none focus:border-[#8ab4f8]"
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold text-[#e8eaed]">{cat}</span>
+                            )}
+                            {isEditing ? (
+                              <button
+                                onClick={() => { renameCategory(cat, editingCategoryName); setEditingCategory(null); }}
+                                className="text-emerald-400 hover:text-emerald-300 cursor-pointer p-1"
+                                title="Save"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingCategory(cat); setEditingCategoryName(cat); }}
+                                className="text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer p-1"
+                                title="Rename"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Remove category "${cat}"? Sellers already using it will keep it on their profile until changed.`)) {
+                                  removeCategory(cat);
+                                }
+                              }}
+                              className="text-[#9aa0a6] hover:text-red-400 cursor-pointer p-1"
+                              title="Remove"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#3c4043]">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newCategoryName.trim()) {
+                            addCategory(newCategoryName);
+                            setNewCategoryName("");
+                          }
+                        }}
+                        placeholder="New category name (e.g. Pets & Supplies)"
+                        className="flex-1 bg-[#202124] border border-[#5f6368] rounded-lg px-3 py-2 text-xs text-[#e8eaed] focus:outline-none focus:border-[#8ab4f8]"
+                      />
+                      <button
+                        onClick={() => {
+                          if (!newCategoryName.trim()) return;
+                          addCategory(newCategoryName);
+                          setNewCategoryName("");
+                        }}
+                        disabled={!newCategoryName.trim()}
+                        className="bg-[#8ab4f8] hover:bg-[#729fee] disabled:opacity-40 text-[#1a1a1a] font-bold px-3.5 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Category
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Platform announcement */}
+                <section className="bg-[#202124] border border-[#3c4043] rounded-lg shadow-md overflow-hidden">
+                  <div className="px-5 py-4 border-b border-[#3c4043] flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-amber-400" />
+                    <h3 className="font-bold text-sm text-[#e8eaed]">Platform Announcement</h3>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
+                      Shown as a red notification dot on the Announcement icon in the header for every signed-in seller until they open it.
+                      Leave blank and save to clear the current announcement.
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={announcementDraft}
+                      onChange={(e) => setAnnouncementDraft(e.target.value)}
+                      placeholder="e.g. TamuBah will be down for maintenance this Sunday 12am-2am."
+                      className="w-full border border-[#5f6368] text-xs rounded bg-[#202124] p-2.5 focus:outline-none focus:border-[#8ab4f8] text-[#e8eaed] resize-none"
+                    />
+                    {announcementSavedMsg && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-2 rounded-lg text-xs">
+                        {announcementSavedMsg}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setAnnouncement(announcementDraft);
+                        setAnnouncementSavedMsg(announcementDraft.trim() ? "Announcement published." : "Announcement cleared.");
+                        setTimeout(() => setAnnouncementSavedMsg(""), 2500);
+                      }}
+                      className="bg-amber-500 hover:bg-amber-400 text-[#1a1a1a] font-bold px-4 py-2.5 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      Publish Announcement
+                    </button>
+                  </div>
+                </section>
               </div>
             )}
 

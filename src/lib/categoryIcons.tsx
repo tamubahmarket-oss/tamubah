@@ -20,9 +20,22 @@ export const BADGE_COLORS: Record<string, string> = {
   Others: "#64748b",
 };
 
+const COLORS_STORAGE_KEY = "tamubah_category_colors_v1";
+
+function readColorOverrides(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(COLORS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 /** Solid hex color for a category (used for accent bars, borders, etc.) */
 export function getCategoryColor(category: string): string {
-  return BADGE_COLORS[category] || BADGE_COLORS.Others;
+  const overrides = readColorOverrides();
+  return overrides[category] || BADGE_COLORS[category] || BADGE_COLORS.Others;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
