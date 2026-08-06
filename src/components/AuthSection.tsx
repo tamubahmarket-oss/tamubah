@@ -99,12 +99,11 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
   };
 
   React.useEffect(() => {
-    fetch("/api/sellers")
+    fetch("/api/sellers/count")
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          setSellerCount(data.length);
-        }
+        const count = typeof data?.count === "number" ? data.count : 0;
+        setSellerCount(count);
       })
       .catch((err) => console.error("Failed to load seller count in AuthSection", err))
       .finally(() => setLoadingSellers(false));

@@ -20,8 +20,7 @@ import { createRequire } from "module";
 if (typeof globalThis.WebSocket === "undefined") {
   const require = createRequire(import.meta.url);
   const { WebSocket } = require("ws");
-  // @ts-expect-error - ws's WebSocket is close enough to the DOM one for realtime-js's purposes
-  globalThis.WebSocket = WebSocket;
+  globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 }
 
 // ============================================================================
@@ -985,6 +984,33 @@ async function startServer() {
   // ---------------------------------------------------------------------
   // PUBLIC: Sellers
   // ---------------------------------------------------------------------
+  app.get("/api/sellers/count", async (req, res) => {
+    try {
+      const location = (req.query.location as string) || "All";
+      const category = (req.query.category as string) || "All";
+      const filterType = (req.query.filter as string) || "all";
+      const showAll = req.query.showAll === "true";
+
+      let query = supabase.from("sellers").select("id", { count: "exact", head: true });
+
+      if (location && location !== "All") query = query.eq("location", location);
+      if (category && category !== "All") query = query.eq("category", category);
+      if (filterType === "verified") query = query.neq("verification_tier", "None");
+      if (filterType === "unverified") query = query.eq("verification_tier", "None");
+      if (!showAll && filterType !== "unverified" && filterType !== "all") {
+        query = query.eq("is_approved", true);
+      }
+
+      const { count, error } = await query;
+      if (error) throw error;
+
+      res.json({ count: count || 0 });
+    } catch (err: any) {
+      console.error("GET /api/sellers/count", err);
+      res.status(500).json({ error: "Failed to count sellers." });
+    }
+  });
+
   app.get("/api/sellers", async (req, res) => {
     try {
       const search = ((req.query.search as string) || "").toLowerCase();

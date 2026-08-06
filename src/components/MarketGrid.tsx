@@ -318,13 +318,12 @@ export default function MarketGrid({
   const [loadingSellers, setLoadingSellers] = useState<boolean>(true);
 
   useEffect(() => {
-    fetch("/api/sellers")
+    fetch("/api/sellers/count")
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          setSellersList(data);
-          setSellerCount(data.length);
-        }
+        const count = typeof data?.count === "number" ? data.count : 0;
+        setSellersList([]);
+        setSellerCount(count);
       })
       .catch((err) => console.error("Failed to load sellers list in MarketGrid", err))
       .finally(() => setLoadingSellers(false));
