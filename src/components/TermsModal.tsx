@@ -26,12 +26,11 @@ export default function TermsModal({ isOpen, onClose, defaultTab = "terms", onSw
     if (isOpen) {
       setActiveTab(defaultTab);
       // Fetch seller count from backend to show active spots
-      fetch("/api/sellers")
+      fetch("/api/sellers/count")
         .then((res) => res.json())
         .then((data) => {
-          if (Array.isArray(data)) {
-            setSellerCount(data.length);
-          }
+          const count = typeof data?.count === "number" ? data.count : 0;
+          setSellerCount(count);
         })
         .catch((err) => console.error("Failed to load seller count in Terms", err))
         .finally(() => setLoadingCount(false));
