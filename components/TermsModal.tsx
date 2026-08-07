@@ -29,7 +29,7 @@ export default function TermsModal({ isOpen, onClose, defaultTab = "terms", onSw
       // showAll+limit bypasses the API's default 50-row cap (which was freezing
       // this at 50 forever), and we count "founding" sellers specifically —
       // that's the actual number of free-forever promo slots used.
-      fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
+      fetch("/api/sellers?showAll=true&limit=1000")
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {

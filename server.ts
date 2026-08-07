@@ -1957,6 +1957,87 @@ async function startServer() {
     }
   });
 
+  app.post("/api/sellers/password-reset", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || !String(email).trim()) {
+        return res.status(400).json({ error: "Please enter your email address." });
+      }
+
+      const emailLower = String(email).trim().toLowerCase();
+      const { data: seller, error } = await supabase
+        .from("sellers")
+        .select("id, email, business_name")
+        .eq("email", emailLower)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!seller) {
+        return res.status(404).json({ error: "No seller account was found with that email address." });
+      }
+
+      const tempPassword = Math.random().toString(36).slice(-8);
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const { error: updateError } = await supabase.from("sellers").update({ password_hash: passwordHash }).eq("id", seller.id);
+      if (updateError) throw updateError;
+
+      const html = emailShell(`
+        <tr><td style="padding:36px 40px 8px;">
+          <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#059669;">Password reset</p>
+          <h2 style="margin:0 0 20px;font-size:22px;color:#0f172a;">Your temporary password is ready</h2>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
+            Hi ${seller.business_name || "there"}, we reset your seller password for you. Please sign in with the temporary password below and then change it immediately from your dashboard.
+          </p>
+          <div style="margin:0 0 20px;padding:18px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-family:monospace;font-size:16px;color:#0f172a;">${tempPassword}</div>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#059669;">
+            <a href="${APP_BASE_URL}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">Open TamuBah</a>
+          </td></tr></table>
+        </td></tr>`);
+
+      await sendEmail({
+        to: seller.email,
+        subject: "Your TamuBah seller password has been reset",
+        html,
+      });
+
+      res.json({ success: true, message: "A temporary password has been sent to your email address." });
+    } catch (err: any) {
+      console.error("POST /api/sellers/password-reset", err);
+      res.status(500).json({ error: "Unable to reset the password right now. Please try again." });
+    }
+  });
+
+  app.patch("/api/sellers/:id/password", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current password and a new password are required." });
+      }
+      if (String(newPassword).length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters long." });
+      }
+
+      const { data: seller, error } = await supabase.from("sellers").select("id, password_hash").eq("id", id).maybeSingle();
+      if (error) throw error;
+      if (!seller) return res.status(404).json({ error: "Seller account not found." });
+
+      const passwordOk = await bcrypt.compare(String(currentPassword), seller.password_hash);
+      if (!passwordOk) {
+        return res.status(400).json({ error: "Current password is incorrect." });
+      }
+
+      const passwordHash = await bcrypt.hash(String(newPassword), 10);
+      const { error: updateError } = await supabase.from("sellers").update({ password_hash: passwordHash }).eq("id", id);
+      if (updateError) throw updateError;
+
+      res.json({ success: true, message: "Password updated successfully." });
+    } catch (err: any) {
+      console.error("PATCH /api/sellers/:id/password", err);
+      res.status(500).json({ error: "Failed to update password." });
+    }
+  });
+
   // ---------------------------------------------------------------------
   // ADMIN: auth
   // ---------------------------------------------------------------------

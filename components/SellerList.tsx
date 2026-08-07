@@ -223,7 +223,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const fetchSellers = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" });
+      const response = await fetch("/api/sellers?showAll=true&limit=1000");
       const data = await response.json();
       if (response.ok) {
         setSellers(data);
