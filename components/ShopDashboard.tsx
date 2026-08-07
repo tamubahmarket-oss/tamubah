@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { Seller, Product, BUSINESS_CATEGORIES, SABAH_LOCATIONS } from "../types";
 import { compressAndResizeImage } from "../utils";
-import { validatePassword } from "../lib/passwordUtils";
 import { useLanguage } from "../lib/LanguageContext";
 import ShareModal from "./ShareModal";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -325,7 +324,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [loadingSellers, setLoadingSellers] = useState<boolean>(true);
 
   useEffect(() => {
-    fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
+    fetch("/api/sellers?showAll=true&limit=1000")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -360,10 +359,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileDragActive, setProfileDragActive] = useState(false);
   const [profileImageUploading, setProfileImageUploading] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
 
   // Sync profile form values if seller prop changes
   useEffect(() => {
@@ -437,42 +432,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       setError(err.message);
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    const passwordCheck = validatePassword(newPassword);
-    if (!passwordCheck.isValid) {
-      setError(passwordCheck.message || "Password is invalid.");
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setError("New passwords do not match.");
-      return;
-    }
-
-    setSavingPassword(true);
-    try {
-      const response = await fetch(`/api/sellers/${seller.id}/password`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to update password.");
-      setSuccess("Password updated successfully.");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-    } catch (err: any) {
-      setError(err.message || "Unable to update password.");
-    } finally {
-      setSavingPassword(false);
     }
   };
 
@@ -1960,52 +1919,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                   <Check className="w-4 h-4" />
                 </button>
 
-              </form>
-
-              <form onSubmit={handleChangePassword} className="mt-8 border-t border-slate-100 pt-8 space-y-4">
-                <div className="flex items-center gap-2 text-slate-800">
-                  <Lock className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-sm font-bold">Change Password</h3>
-                </div>
-                <p className="text-xs text-slate-500">Use this if you want to update the password you use to sign in.</p>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Current Password</label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">New Password</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Confirm New Password</label>
-                  <input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={savingPassword}
-                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
-                >
-                  {savingPassword ? "Updating password..." : "Change Password"}
-                </button>
               </form>
             </div>
           </div>

@@ -112,21 +112,6 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   } | null>(null);
   const [analyticsDays, setAnalyticsDays] = useState<number>(30);
   const [analyticsLastUpdated, setAnalyticsLastUpdated] = useState<Date | null>(null);
-  const [analyticsError, setAnalyticsError] = useState<string>("");
-
-  // Full, unfiltered, unpaginated seller list — used for the Contact List tab and
-  // the all-time growth/engagement charts below (the `sellers` state above is
-  // paginated + filtered for the Merchants table and isn't a safe source for either).
-  const [allSellers, setAllSellers] = useState<Seller[]>([]);
-  const fetchAllSellers = async () => {
-    try {
-      const res = await fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" });
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) setAllSellers(data);
-    } catch (error) {
-      console.error("Failed to load full seller list", error);
-    }
-  };
 
   // Normalizes a raw MY phone number to +60 international format for WhatsApp/Contacts import
   const normalizePhone = (raw: string): string => {
@@ -137,33 +122,11 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
     return clean ? `+${clean}` : "";
   };
 
-  const sellersByJoinDate = [...allSellers].sort((a: any, b: any) => {
+  const sellersByJoinDate = [...sellers].sort((a: any, b: any) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return aTime - bTime;
   });
-
-  // Cumulative sellers-joined-over-time (all history) for the growth chart
-  const sellerGrowth = (() => {
-    const byDate = new Map<string, number>();
-    sellersByJoinDate.forEach((s: any) => {
-      if (!s.createdAt) return;
-      const key = new Date(s.createdAt).toISOString().slice(0, 10);
-      byDate.set(key, (byDate.get(key) || 0) + 1);
-    });
-    const dates = Array.from(byDate.keys()).sort();
-    let running = 0;
-    return dates.map((date) => {
-      running += byDate.get(date)!;
-      return { date, cumulative: running };
-    });
-  })();
-
-  // Top sellers by lifetime WhatsApp contact clicks
-  const topContactedSellers = [...allSellers]
-    .filter((s: any) => (s.contactCount || 0) > 0)
-    .sort((a: any, b: any) => (b.contactCount || 0) - (a.contactCount || 0))
-    .slice(0, 10);
 
   const copyToClipboard = async (text: string, successLabel: string) => {
     try {
@@ -421,21 +384,12 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const fetchAnalytics = async () => {
     try {
       const res = await fetch(`/api/admin/analytics?days=${analyticsDays}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setAnalyticsError(
-          body.error ||
-            `Failed to load analytics (HTTP ${res.status}). If this is the first time, make sure you've run the latest supabase/schema.sql — it adds the "analytics_events" table this chart needs.`
-        );
-        return;
-      }
+      if (!res.ok) return;
       const data = await res.json();
       setAnalytics(data);
-      setAnalyticsError("");
       setAnalyticsLastUpdated(new Date());
     } catch (error) {
       console.error("Failed to load analytics", error);
-      setAnalyticsError("Couldn't reach the server to load analytics. Check your connection and try again.");
     }
   };
 
@@ -459,20 +413,13 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
 
   useEffect(() => {
     fetchAdminData();
-    fetchAllSellers();
   }, []);
 
-  // Live-refresh the marketing analytics chart + full seller list every 20s
-  // while the Metrics or Contact List tab is open, so both stay current every
-  // time you check the admin panel.
+  // Live-refresh the marketing analytics chart every 20s while the Metrics tab is open
   useEffect(() => {
     fetchAnalytics();
-    if (activeTab === "metrics" || activeTab === "contacts") fetchAllSellers();
-    if (activeTab !== "metrics" && activeTab !== "contacts") return;
-    const interval = setInterval(() => {
-      fetchAnalytics();
-      fetchAllSellers();
-    }, 20000);
+    if (activeTab !== "metrics") return;
+    const interval = setInterval(fetchAnalytics, 20000);
     return () => clearInterval(interval);
   }, [activeTab, analyticsDays]);
 
@@ -1236,7 +1183,7 @@ spec:
                       <div>
                         <h3 className="text-[#e8eaed] font-bold text-sm">Live Marketing Analytics</h3>
                         <p className="text-[10px] text-[#9aa0a6] mt-0.5">
-                          {analyticsError ? "Couldn't load" : analyticsLastUpdated ? `Updated ${timeAgo(analyticsLastUpdated.toISOString())} · auto-refreshes every 20s` : "Loading..."}
+                          {analyticsLastUpdated ? `Updated ${timeAgo(analyticsLastUpdated.toISOString())} · auto-refreshes every 20s` : "Loading..."}
                         </p>
                       </div>
                     </div>
@@ -1265,11 +1212,7 @@ spec:
                   </div>
 
                   <div className="p-5 space-y-6">
-                    {analyticsError ? (
-                      <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-3 rounded-lg text-xs leading-relaxed">
-                        {analyticsError}
-                      </div>
-                    ) : !analytics ? (
+                    {!analytics ? (
                       <div className="py-10 text-center text-slate-400 text-xs italic">Loading analytics…</div>
                     ) : (
                       <>
@@ -1392,80 +1335,6 @@ spec:
                         </div>
                       </>
                     )}
-                  </div>
-                </div>
-
-                {/* All-Time Seller Growth & Engagement — uses real historical data (join dates,
-                    lifetime contact counts), unlike the chart above which only tracks from the
-                    day analytics_events was created. Refreshes alongside the panel above. */}
-                <div className="bg-[#202124] border border-[#3c4043] rounded-md overflow-hidden shadow-md">
-                  <div className="bg-[#2a2b2f] px-4 py-3 border-b border-[#3c4043] flex items-center gap-2">
-                    <Users className="w-4 h-4 text-[#8ab4f8]" />
-                    <div>
-                      <h3 className="text-[#e8eaed] font-bold text-sm">Seller Growth & Engagement (All-Time)</h3>
-                      <p className="text-[10px] text-[#9aa0a6] mt-0.5">Built from real sign-up dates &amp; lifetime WhatsApp click counts — covers your full history, not just since the chart above started tracking.</p>
-                    </div>
-                  </div>
-
-                  <div className="p-5 space-y-6">
-                    {/* Cumulative growth line */}
-                    <div>
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2">
-                        Total Sellers Over Time ({sellerGrowth.length > 0 ? sellerGrowth[sellerGrowth.length - 1].cumulative : 0} total)
-                      </h4>
-                      {sellerGrowth.length < 2 ? (
-                        <p className="text-xs text-slate-400 italic">Not enough history yet to chart a trend.</p>
-                      ) : (
-                        <>
-                          <svg viewBox="0 0 600 140" className="w-full h-36" preserveAspectRatio="none">
-                            {[0, 1, 2, 3].map((i) => (
-                              <line key={i} x1={8} x2={592} y1={8 + i * 41.3} y2={8 + i * 41.3} stroke="#3c4043" strokeWidth={1} />
-                            ))}
-                            <polyline
-                              points={buildLinePoints(sellerGrowth.map((d) => d.cumulative), 600, 140)}
-                              fill="none"
-                              stroke="#fdd663"
-                              strokeWidth={2}
-                              strokeLinejoin="round"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <div className="flex justify-between text-[9px] text-[#9aa0a6] font-mono mt-1">
-                            <span>{formatShortDate(sellerGrowth[0].date)}</span>
-                            <span>{formatShortDate(sellerGrowth[sellerGrowth.length - 1].date)}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Top sellers by lifetime WhatsApp clicks */}
-                    <div>
-                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2 flex items-center gap-1.5">
-                        <ExternalLink className="w-3 h-3" />
-                        Top Sellers by WhatsApp Clicks (All-Time)
-                      </h4>
-                      {topContactedSellers.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">No WhatsApp clicks recorded yet.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {topContactedSellers.map((s: any) => {
-                            const maxClicks = Math.max(1, ...topContactedSellers.map((x: any) => x.contactCount || 0));
-                            return (
-                              <div key={s.id} className="flex items-center gap-3">
-                                <span className="w-36 shrink-0 text-[10px] text-[#bdc1c6] truncate">{s.businessName}</span>
-                                <div className="flex-1 h-4 bg-[#2a2b2f] rounded overflow-hidden">
-                                  <div
-                                    className="h-full bg-[#81c995]"
-                                    style={{ width: `${((s.contactCount || 0) / maxClicks) * 100}%` }}
-                                  />
-                                </div>
-                                <span className="w-8 shrink-0 text-[10px] text-[#9aa0a6] font-mono text-right">{s.contactCount || 0}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
 

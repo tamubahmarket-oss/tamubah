@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { SABAH_LOCATIONS, BUSINESS_CATEGORIES, Seller } from "../types";
 import { validateSSM } from "../utils";
-import { validatePassword } from "../lib/passwordUtils";
 import { useLanguage } from "../lib/LanguageContext";
 import TermsModal from "./TermsModal";
 
@@ -51,8 +50,6 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
   // Login states
   const [loginIdentity, setLoginIdentity] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [resetEmail, setResetEmail] = useState("");
-  const [showResetForm, setShowResetForm] = useState(false);
 
   // Real-time seller counts for promo tracking
   const [sellerCount, setSellerCount] = useState<number>(0);
@@ -102,7 +99,7 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
   };
 
   React.useEffect(() => {
-    fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
+    fetch("/api/sellers?showAll=true&limit=1000")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -148,9 +145,8 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
       return false;
     }
 
-    const passwordCheck = validatePassword(password);
-    if (!passwordCheck.isValid) {
-      setError(passwordCheck.message || "Password is invalid.");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
       return false;
     }
 
@@ -289,35 +285,6 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
     }
   };
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (!resetEmail.trim()) {
-      setError("Please enter your email address.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch("/api/sellers/password-reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: resetEmail }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to reset password.");
-      setSuccess(data.message || "A temporary password has been sent to your email.");
-      setResetEmail("");
-      setShowResetForm(false);
-    } catch (err: any) {
-      setError(err.message || "Unable to reset password right now.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <>
     <div id="auth-section" className="bg-white rounded-2xl shadow-xl border border-emerald-100 overflow-hidden max-w-lg w-full mx-auto">
@@ -416,38 +383,6 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
                 />
               </div>
             </div>
-
-            <div className="flex items-center justify-between text-xs mt-2">
-              <button
-                type="button"
-                onClick={() => setShowResetForm((prev) => !prev)}
-                className="font-semibold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
-              >
-                {language === "EN" ? "Forgot password?" : "Lupa kata laluan?"}
-              </button>
-            </div>
-
-            {showResetForm && (
-              <form onSubmit={handlePasswordReset} className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 space-y-3">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  {language === "EN" ? "Email address" : "Alamat e-mel"}
-                </label>
-                <input
-                  type="email"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all"
-                >
-                  {loading ? (language === "EN" ? "Sending..." : "Menghantar...") : (language === "EN" ? "Send temporary password" : "Hantar kata laluan sementara")}
-                </button>
-              </form>
-            )}
 
             <button
               id="login-submit-btn"

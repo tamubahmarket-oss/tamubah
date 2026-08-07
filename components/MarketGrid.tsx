@@ -322,7 +322,7 @@ export default function MarketGrid({
     // which was silently freezing this counter at 50 once total sellers passed
     // that mark. Also count actual "founding" (free-forever) sellers, not just
     // every registered seller, since that's what the 100-slot promo tracks.
-    fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
+    fetch("/api/sellers?showAll=true&limit=1000")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
