@@ -1301,6 +1301,59 @@ async function startServer() {
     }
   });
 
+  // Full product catalog for a single seller (published + in-shop-only),
+  // used by the seller shop modal so it isn't limited to Market-published items.
+  app.get("/api/sellers/:id/products", async (req, res) => {
+    try {
+      const sellerId = req.params.id;
+
+      const [{ data: seller, error: sellerErr }, { data: productRows, error: prodErr }, { data: reportRows }, { data: reviewRows }] =
+        await Promise.all([
+          supabase.from("sellers").select("*").eq("id", sellerId).maybeSingle(),
+          supabase.from("products").select("*").eq("seller_id", sellerId),
+          supabase.from("reports").select("id, seller_id").eq("seller_id", sellerId),
+          supabase.from("reviews").select("rating, seller_id").eq("seller_id", sellerId),
+        ]);
+      if (sellerErr) throw sellerErr;
+      if (prodErr) throw prodErr;
+
+      const totalRating = (reviewRows || []).reduce((sum: number, r: any) => sum + r.rating, 0);
+      const averageRating = (reviewRows || []).length > 0 ? parseFloat((totalRating / (reviewRows as any[]).length).toFixed(1)) : 0;
+
+      const enriched = ((productRows || []) as ProductRow[]).map((p) =>
+        productToApi(p, {
+          sellerName: seller ? seller.owner_name : "Sabah Entrepreneur",
+          businessName: seller ? seller.business_name : "Home Business",
+          availableArea: seller ? seller.location : "Sabah",
+          contactNumber: seller ? seller.phone_number : "",
+          address: seller ? seller.address : "",
+          sellerLogoUrl: seller ? seller.logo_url : undefined,
+          sellerEstablishedYear: seller ? seller.established_year : undefined,
+          sellerDream: seller ? seller.dream : undefined,
+          sellerIsVerified: seller ? !!seller.is_verified : false,
+          sellerIsApproved: seller ? !!seller.is_approved : false,
+          sellerVerificationTier: seller ? seller.verification_tier || "None" : "None",
+          ssmNumber: seller ? seller.ssm_number : "",
+          reportCount: (reportRows || []).length,
+          sellerAverageRating: averageRating,
+          sellerReviewCount: (reviewRows || []).length,
+        })
+      );
+
+      enriched.sort((a: any, b: any) => {
+        const pinA = a.isPinned ? 1 : 0;
+        const pinB = b.isPinned ? 1 : 0;
+        if (pinA !== pinB) return pinB - pinA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      res.json(enriched);
+    } catch (err: any) {
+      console.error("GET /api/sellers/:id/products", err);
+      res.status(500).json({ error: "Failed to load this seller's products." });
+    }
+  });
+
   // ---------------------------------------------------------------------
   // PUBLIC: Products
   // ---------------------------------------------------------------------

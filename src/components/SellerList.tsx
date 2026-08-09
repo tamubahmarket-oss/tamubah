@@ -86,6 +86,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   useEffect(() => {
     if (activeSellerModal) {
       fetchReviews(activeSellerModal.id);
+      fetchShopProducts(activeSellerModal.id);
       // Reset form states
       setRatingInput(5);
       setReviewerNameInput("");
@@ -94,8 +95,35 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
       setReviewErrorMsg("");
     } else {
       setReviews([]);
+      setShopProducts([]);
     }
   }, [activeSellerModal]);
+
+  // All of this seller's products (published + in-shop-only), not just the ones
+  // currently live on the Market page. The `products` prop only contains
+  // market-published products, so the shop modal fetches the seller's full
+  // catalog separately.
+  const [shopProducts, setShopProducts] = useState<Product[]>([]);
+  const [loadingShopProducts, setLoadingShopProducts] = useState<boolean>(false);
+
+  const fetchShopProducts = async (sellerId: string) => {
+    setLoadingShopProducts(true);
+    try {
+      const res = await fetch(`/api/sellers/${sellerId}/products`);
+      const data = await res.json();
+      if (res.ok) {
+        setShopProducts(data as Product[]);
+      } else {
+        // Fall back to whatever the market list already has for this seller
+        setShopProducts(products.filter((p) => p.sellerId === sellerId));
+      }
+    } catch (err) {
+      console.error("Error fetching seller's shop products:", err);
+      setShopProducts(products.filter((p) => p.sellerId === sellerId));
+    } finally {
+      setLoadingShopProducts(false);
+    }
+  };
 
   const fetchReviews = async (sellerId: string) => {
     setLoadingReviews(true);
@@ -269,11 +297,6 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
     (sellerPage - 1) * SELLERS_PER_PAGE,
     sellerPage * SELLERS_PER_PAGE
   );
-
-  // Get products belong to a specific seller
-  const getSellerProducts = (sellerId: string) => {
-    return products.filter((p) => p.sellerId === sellerId);
-  };
 
   // Format WhatsApp link for seller profile
   const getWhatsAppLink = (seller: Seller, message?: string) => {
@@ -840,7 +863,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">{language === "EN" ? "Active Stock:" : "Stok Aktif:"}</span>
-                      <span className="font-bold text-emerald-700">{getSellerProducts(activeSellerModal.id).length} {language === "EN" ? "Items" : "Produk"}</span>
+                      <span className="font-bold text-emerald-700">{shopProducts.length} {language === "EN" ? "Items" : "Produk"}</span>
                     </div>
                   </div>
 
@@ -853,7 +876,13 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                     {language === "EN" ? `Products by ${activeSellerModal.businessName}` : `Produk oleh ${activeSellerModal.businessName}`}
                   </h4>
 
-                  {getSellerProducts(activeSellerModal.id).length === 0 ? (
+                  {loadingShopProducts ? (
+                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <p className="text-xs text-slate-400">
+                        {language === "EN" ? "Loading products..." : "Memuatkan produk..."}
+                      </p>
+                    </div>
+                  ) : shopProducts.length === 0 ? (
                     <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs text-slate-400">
@@ -862,7 +891,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {getSellerProducts(activeSellerModal.id).map((prod) => (
+                      {shopProducts.map((prod) => (
                         <div 
                           key={prod.id} 
                           className="flex border border-slate-100 bg-white rounded-2xl p-2.5 gap-3 hover:border-slate-200 hover:shadow-sm transition-all"
