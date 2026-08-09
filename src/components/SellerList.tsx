@@ -327,18 +327,23 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
     <div id="seller-list-view" className="max-w-7xl mx-auto px-4 py-8">
       
       {/* Visual Header Banner */}
-      <div className="text-center max-w-3xl mx-auto mb-10">
-        <span className="bg-emerald-50 text-emerald-800 text-xs font-bold px-4 py-1.5 rounded-full border border-emerald-200/50 uppercase tracking-widest inline-block mb-3">
-          {t("directory_badge")}
-        </span>
-        <h1 className="text-3xl md:text-5xl font-extrabold font-sans tracking-tight text-slate-900 leading-tight">
+      <div className="relative text-center max-w-3xl mx-auto mb-10 py-2">
+        <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
+        <div className="relative flex items-center justify-center gap-3 mb-4">
+          <span className="h-px w-8 bg-amber-400/60"></span>
+          <span className="text-amber-700 text-[11px] font-bold uppercase tracking-[0.2em]">
+            {t("directory_badge")}
+          </span>
+          <span className="h-px w-8 bg-amber-400/60"></span>
+        </div>
+        <h1 className="relative text-4xl md:text-6xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
           {language === "EN" ? (
-            <>Meet Our Local <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Entrepreneurs</span></>
+            <>Meet Our Local <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Entrepreneurs</span></>
           ) : (
-            <>Kenali <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Usahawan</span> Tempatan Kita</>
+            <>Kenali <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Usahawan</span> Tempatan Kita</>
           )}
         </h1>
-        <p className="text-slate-500 text-sm md:text-base mt-4 font-sans leading-relaxed">
+        <p className="relative text-slate-500 text-sm md:text-base mt-4 font-sans leading-relaxed">
           {t("directory_desc")}
         </p>
       </div>

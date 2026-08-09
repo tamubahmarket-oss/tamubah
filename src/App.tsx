@@ -593,10 +593,13 @@ export default function App() {
             /* Auth Splash panel when seller wants to access shop space but is not logged in */
             <div className="max-w-4xl mx-auto px-4 py-12 md:py-20 flex flex-col lg:flex-row items-center gap-12">
               <div className="lg:w-1/2 space-y-5">
-                <span className="bg-emerald-50 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-100 uppercase tracking-widest inline-block">
-                  Seller Portal
-                </span>
-                <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 font-sans leading-tight">
+                <div className="flex items-center gap-3">
+                  <span className="h-px w-8 bg-amber-400/60"></span>
+                  <span className="text-amber-700 text-[11px] font-bold uppercase tracking-[0.2em]">
+                    Seller Portal
+                  </span>
+                </div>
+                <h2 className="text-3xl md:text-5xl font-display font-semibold tracking-tight text-slate-900 leading-[1.1]">
                   Grow your homemade business in Sabah
                 </h2>
                 <p className="text-slate-500 text-sm md:text-base leading-relaxed">
