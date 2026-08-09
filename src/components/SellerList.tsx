@@ -21,9 +21,10 @@ interface SellerListProps {
   products: Product[];
   onRefreshProducts: () => void;
   initialSearchQuery?: string;
+  onViewProduct?: (productId: string) => void;
 }
 
-export default function SellerList({ products, onRefreshProducts, initialSearchQuery }: SellerListProps) {
+export default function SellerList({ products, onRefreshProducts, initialSearchQuery, onViewProduct }: SellerListProps) {
   const { t, language } = useLanguage();
   const { categories: BUSINESS_CATEGORIES } = useCategories();
   const [sellers, setSellers] = useState<SellerWithStats[]>([]);
@@ -907,10 +908,11 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                             referrerPolicy="no-referrer"
                             loading="lazy"
                             decoding="async"
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 bg-slate-50"
+                            onClick={() => onViewProduct?.(prod.id)}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 bg-slate-50 cursor-pointer"
                           />
                           <div className="flex flex-col justify-between flex-grow min-w-0">
-                            <div>
+                            <div onClick={() => onViewProduct?.(prod.id)} className="cursor-pointer">
                               <div className="flex justify-between items-start gap-1.5">
                                 <h5 className="font-bold text-slate-800 text-xs truncate leading-snug" title={prod.title}>
                                   {prod.title}

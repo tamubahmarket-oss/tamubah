@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { 
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
-  X, Building, Calendar, User, Briefcase, FileText, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
-  Share2, Check, Store, Star, CheckCircle
+  X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
+  Share2, Check, Store, Star
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, SABAH_LOCATIONS } from "../types";
@@ -20,6 +20,7 @@ interface MarketGridProps {
   selectedLocation?: string;
   onLocationChange?: (location: string) => void;
   initialSearchQuery?: string;
+  onViewSellerShop?: (sellerId: string) => void;
 }
 
 export default function MarketGrid({ 
@@ -28,7 +29,8 @@ export default function MarketGrid({
   onRefreshProducts,
   selectedLocation: propSelectedLocation,
   onLocationChange,
-  initialSearchQuery
+  initialSearchQuery,
+  onViewSellerShop
 }: MarketGridProps) {
   const { t, language } = useLanguage();
   const { categories: BUSINESS_CATEGORIES } = useCategories();
@@ -53,8 +55,6 @@ export default function MarketGrid({
     }
   };
 
-  const [selectedSellerProfile, setSelectedSellerProfile] = useState<Product | null>(null);
-
   // Unified share modal state
   const [shareModalData, setShareModalData] = useState<{
     isOpen: boolean;
@@ -63,24 +63,6 @@ export default function MarketGrid({
     shareUrl: string;
     shareText: string;
   } | null>(null);
-
-  const handleOpenSellerProfile = (p: Product) => {
-    setSelectedSellerProfile(p);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("sellerId", p.sellerId);
-      window.history.replaceState({}, "", url.pathname + url.search);
-    }
-  };
-
-  const handleCloseSellerProfile = () => {
-    setSelectedSellerProfile(null);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("sellerId");
-      window.history.replaceState({}, "", url.pathname + url.search);
-    }
-  };
 
   // Shared Link Product details states and hook
   const [sharedProduct, setSharedProduct] = useState<Product | null>(null);
@@ -110,50 +92,11 @@ export default function MarketGrid({
           });
       }
 
-      // Load shared seller profile
+      // A shared seller link opened while already on the Market tab (e.g. via
+      // client-side navigation) — send them to that seller's real shop.
       const sharedSellerId = params.get("sellerId");
       if (sharedSellerId) {
-        fetch(`/api/sellers/${sharedSellerId}`)
-          .then((res) => {
-            if (res.ok) {
-              return res.json();
-            }
-            throw new Error("Seller profile not found");
-          })
-          .then((data) => {
-            if (data.success && data.seller) {
-              const mappedProfile: Product = {
-                id: `temp-${data.seller.id}`,
-                title: "",
-                category: data.seller.category || "Food&Tamu",
-                description: "",
-                price: 0,
-                imageUrl: "",
-                isAvailable: true,
-                createdAt: new Date().toISOString(),
-                sellerId: data.seller.id,
-                sellerName: data.seller.ownerName,
-                businessName: data.seller.businessName,
-                availableArea: data.seller.location,
-                contactNumber: data.seller.phoneNumber,
-                address: data.seller.address,
-                sellerLogoUrl: data.seller.logoUrl,
-                sellerDream: data.seller.dream,
-                sellerEstablishedYear: data.seller.establishedYear,
-                sellerIsVerified: !!data.seller.isVerified,
-                sellerIsApproved: !!data.seller.isApproved,
-                sellerVerificationTier: data.seller.verificationTier || "None",
-                ssmNumber: data.seller.ssmNumber,
-                reportCount: data.seller.reportCount || 0,
-                sellerAverageRating: data.seller.averageRating || 0,
-                sellerReviewCount: data.seller.reviewCount || 0
-              };
-              setSelectedSellerProfile(mappedProfile);
-            }
-          })
-          .catch((err) => {
-            console.error("Error loading shared seller profile:", err);
-          });
+        onViewSellerShop?.(sharedSellerId);
       }
     }
   }, []);
@@ -167,92 +110,22 @@ export default function MarketGrid({
     }
   };
 
+  // Open a product's detail view directly from a click on its card — no
+  // fetch needed since we already have the product in hand. Also updates
+  // the URL so the exact product stays deep-linkable/shareable/refreshable.
+  const handleOpenProductDetail = (p: Product) => {
+    setSharedProduct(p);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("productId", p.id);
+      window.history.pushState({}, "", url.pathname + url.search);
+    }
+  };
+
   const handleViewSharedProductSeller = () => {
     if (sharedProduct) {
-      handleOpenSellerProfile(sharedProduct);
+      onViewSellerShop?.(sharedProduct.sellerId);
       handleCloseSharedProduct();
-    }
-  };
-
-  // Seller Profile Review States
-  const [sellerReviews, setSellerReviews] = useState<any[]>([]);
-  const [loadingSellerReviews, setLoadingSellerReviews] = useState<boolean>(false);
-  const [submittingSellerReview, setSubmittingSellerReview] = useState<boolean>(false);
-  const [sellerRatingInput, setSellerRatingInput] = useState<number>(5);
-  const [sellerReviewerName, setSellerReviewerName] = useState<string>("");
-  const [sellerCommentInput, setSellerCommentInput] = useState<string>("");
-  const [sellerReviewSuccess, setSellerReviewSuccess] = useState<string>("");
-  const [sellerReviewError, setSellerReviewError] = useState<string>("");
-
-  useEffect(() => {
-    if (selectedSellerProfile) {
-      fetchSellerReviews(selectedSellerProfile.sellerId);
-      // Reset form fields
-      setSellerRatingInput(5);
-      setSellerReviewerName("");
-      setSellerCommentInput("");
-      setSellerReviewSuccess("");
-      setSellerReviewError("");
-    } else {
-      setSellerReviews([]);
-    }
-  }, [selectedSellerProfile]);
-
-  const fetchSellerReviews = async (sellerId: string) => {
-    setLoadingSellerReviews(true);
-    try {
-      const res = await fetch(`/api/sellers/${sellerId}/reviews`);
-      const data = await res.json();
-      if (res.ok) {
-        setSellerReviews(data);
-      }
-    } catch (err) {
-      console.error("Error fetching seller reviews:", err);
-    } finally {
-      setLoadingSellerReviews(false);
-    }
-  };
-
-  const handleSellerReviewSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSellerProfile) return;
-    if (!sellerReviewerName.trim()) {
-      setSellerReviewError("Please enter your name.");
-      return;
-    }
-
-    setSubmittingSellerReview(true);
-    setSellerReviewSuccess("");
-    setSellerReviewError("");
-
-    try {
-      const res = await fetch(`/api/sellers/${selectedSellerProfile.sellerId}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rating: sellerRatingInput,
-          comment: sellerCommentInput,
-          reviewerName: sellerReviewerName
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSellerReviewSuccess("Thank you for your rating and feedback!");
-        setSellerReviewerName("");
-        setSellerCommentInput("");
-        setSellerRatingInput(5);
-        fetchSellerReviews(selectedSellerProfile.sellerId);
-        // Refresh products list
-        onRefreshProducts();
-        fetchLocalProducts();
-      } else {
-        setSellerReviewError(data.error || "Failed to submit review.");
-      }
-    } catch (err) {
-      console.error("Error submitting review:", err);
-      setSellerReviewError("Failed to connect to the server.");
-    } finally {
-      setSubmittingSellerReview(false);
     }
   };
 
@@ -418,30 +291,6 @@ export default function MarketGrid({
       await navigator.clipboard.writeText(shareText);
       setCopiedProductId(p.id);
       setTimeout(() => setCopiedProductId(null), 2000);
-    } catch (err) {
-      console.error("Clipboard copy failed:", err);
-    }
-  };
-
-  // Seller profile sharing state and handler
-  const [copiedSellerId, setCopiedSellerId] = useState<string | null>(null);
-
-  const handleShareSellerProfile = async (sellerId: string, businessName: string) => {
-    const shareUrl = `${window.location.origin}/?sellerId=${sellerId}`;
-    const shareText = `Check out "${businessName}" on TamuBah Sabah Entrepreneur Marketplace! View their home-based products and ratings here:\n\n${shareUrl}`;
-
-    setShareModalData({
-      isOpen: true,
-      title: businessName,
-      subtitle: "Sabah Home-based Business",
-      shareUrl,
-      shareText: `Check out "${businessName}" on TamuBah! View their home-based products and ratings here:`
-    });
-
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopiedSellerId(sellerId);
-      setTimeout(() => setCopiedSellerId(null), 2000);
     } catch (err) {
       console.error("Clipboard copy failed:", err);
     }
@@ -677,8 +526,12 @@ export default function MarketGrid({
                 {/* Category accent bar */}
                 <div className="h-1 w-full shrink-0" style={{ backgroundColor: getCategoryColor(p.category) }} />
 
-                {/* Image Section */}
-                <div className="h-28 sm:h-32 overflow-hidden relative bg-slate-50 shrink-0">
+                {/* Image Section — click to view this product */}
+                <div
+                  onClick={() => handleOpenProductDetail(p)}
+                  className="h-28 sm:h-32 overflow-hidden relative bg-slate-50 shrink-0 cursor-pointer"
+                  title={`View ${p.title}`}
+                >
                   <img
                     src={p.imageUrl}
                     alt={p.title}
@@ -710,19 +563,21 @@ export default function MarketGrid({
 
                 {/* Card Info Content */}
                 <div className="p-2.5 flex flex-col flex-grow">
-                  {/* Price and Title */}
-                  <h3 className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 mb-1">
-                    {p.title}
-                  </h3>
-                  <span className="text-xs font-extrabold text-slate-900 shrink-0 bg-amber-50 text-amber-950 px-1.5 py-0.5 rounded-md border border-amber-200 w-fit mb-2">
-                    RM {p.price.toFixed(2)}
-                  </span>
+                  {/* Price and Title — click to view this product */}
+                  <div onClick={() => handleOpenProductDetail(p)} className="cursor-pointer" title={`View ${p.title}`}>
+                    <h3 className="font-bold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 mb-1">
+                      {p.title}
+                    </h3>
+                    <span className="text-xs font-extrabold text-slate-900 shrink-0 bg-amber-50 text-amber-950 px-1.5 py-0.5 rounded-md border border-amber-200 w-fit mb-2">
+                      RM {p.price.toFixed(2)}
+                    </span>
+                  </div>
 
                   {/* Seller Brand & Info */}
                   <div className="border-t border-slate-50 pt-2 flex flex-col gap-1.5 mt-auto">
                     <button
                       type="button"
-                      onClick={() => handleOpenSellerProfile(p)}
+                      onClick={() => onViewSellerShop?.(p.sellerId)}
                       title={`Click to view ${p.businessName} full business profile`}
                       className="flex items-center gap-1 cursor-pointer text-left group/btn hover:opacity-90"
                     >
@@ -855,405 +710,6 @@ export default function MarketGrid({
             </div>
           </div>
 
-        </div>
-      )}
-
-      {/* Seller Profile Details Modal */}
-      {selectedSellerProfile && (
-        <div id="seller-profile-modal-overlay" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
-            {/* Header banner */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 p-6 text-white relative">
-              <button
-                type="button"
-                id="close-profile-modal-btn"
-                onClick={handleCloseSellerProfile}
-                className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-1.5 transition-colors cursor-pointer"
-                title="Close Profile"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-emerald-500 bg-white/10 shrink-0 flex items-center justify-center relative">
-                  {selectedSellerProfile.sellerLogoUrl ? (
-                    <img 
-                      src={selectedSellerProfile.sellerLogoUrl} 
-                      alt={selectedSellerProfile.businessName} 
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover" 
-                    />
-                  ) : (
-                    <Building className="w-8 h-8 text-emerald-400" />
-                  )}
-                </div>
-                <div className="flex-grow min-w-0">
-                  {selectedSellerProfile.sellerVerificationTier === "Gold" ? (
-                    <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider bg-amber-950/40 px-2.5 py-1 rounded-md w-fit border border-[#d4af37]/30" style={{ color: "#d4af37" }}>
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#d4af37" }} />
-                      <span>Gold Licensed Seller</span>
-                    </div>
-                  ) : selectedSellerProfile.sellerVerificationTier === "Silver" ? (
-                    <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider bg-slate-900/40 px-2.5 py-1 rounded-md w-fit border border-[#c0c0c0]/30" style={{ color: "#c0c0c0" }}>
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#c0c0c0" }} />
-                      <span>Silver Licensed Seller</span>
-                    </div>
-                  ) : selectedSellerProfile.sellerVerificationTier === "Bronze" ? (
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-orange-950/40 px-2.5 py-1 rounded-md w-fit border border-[#cd7f32]/30" style={{ color: "#cd7f32" }}>
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#cd7f32" }} />
-                      <span>Bronze Licensed Seller</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider bg-slate-950/50 px-2.5 py-1 rounded-md w-fit border border-slate-800">
-                      <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>Unverified Home Seller</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <h3 className="font-extrabold text-xl leading-tight truncate">
-                      {selectedSellerProfile.businessName}
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => handleShareSellerProfile(selectedSellerProfile.sellerId, selectedSellerProfile.businessName)}
-                      className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0"
-                      title="Share Business Profile"
-                    >
-                      {copiedSellerId === selectedSellerProfile.sellerId ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Share2 className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Founded by <span className="text-white font-medium">{selectedSellerProfile.sellerName}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Profile body content */}
-            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-              
-              {/* Services & Runners Safety Banner in profile modal */}
-              {selectedSellerProfile.category === "Services&Runners" && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-2xl p-4 flex items-start gap-3 text-xs leading-relaxed shadow-sm">
-                  <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-amber-900 block mb-0.5">Services & Runners Safety Notice</span>
-                    TamuBah is a directory only. Users are fully responsible for vetting their own runners and verifying cash payments upon delivery.
-                  </div>
-                </div>
-              )}
-
-              {/* Reports status warning in details modal */}
-              {selectedSellerProfile.reportCount && selectedSellerProfile.reportCount > 0 ? (
-                <div className="bg-rose-50 border border-rose-200 text-rose-950 rounded-2xl p-4 flex items-start gap-3 text-xs leading-relaxed">
-                  <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-rose-800 block mb-0.5">Scam & Fraud Advisory Alert</span>
-                    This seller profile has been flagged <span className="font-bold text-rose-700">{selectedSellerProfile.reportCount} {selectedSellerProfile.reportCount === 1 ? "time" : "times"}</span> by buyers for potential safety concerns. We strongly urge buyers to do face-to-face transactions or Cash on Delivery (COD) only.
-                  </div>
-                </div>
-              ) : null}
-
-              {/* About / Est. Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex items-center gap-3">
-                  <div className="p-2 bg-emerald-100/60 rounded-xl text-emerald-700">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider">Serving Since</span>
-                    <span className="text-slate-800 font-bold text-xs">
-                      {selectedSellerProfile.sellerEstablishedYear || "Not specified"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex items-center gap-3">
-                  <div className="p-2 bg-emerald-100/60 rounded-xl text-emerald-700">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[9px] font-bold uppercase tracking-wider">Base Location</span>
-                    <span className="text-slate-800 font-bold text-xs">
-                      {selectedSellerProfile.availableArea}, Sabah
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Motivation/Dream Quote Box */}
-              <div>
-                <h4 className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md w-fit uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <span>The Entrepreneur's Dream & Goal</span>
-                </h4>
-                <div className="relative bg-gradient-to-br from-amber-50/40 to-orange-50/25 p-4.5 rounded-2xl border border-amber-100/30">
-                  <p className="text-slate-750 text-xs italic leading-relaxed font-serif text-slate-800">
-                    {selectedSellerProfile.sellerDream ? `"${selectedSellerProfile.sellerDream}"` : '"Our goal is to provide our amazing customers in Sabah with fresh, high-quality, authentic homemade products baked with love right from our kitchen."'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Direct Contacts Info */}
-              <div className="space-y-3.5 bg-slate-50/60 p-4.5 rounded-2xl border border-slate-100 text-xs">
-                <h4 className="font-bold text-slate-700 text-xs border-b border-slate-100 pb-2 mb-2 flex items-center gap-1.5">
-                  <Briefcase className="w-4 h-4 text-slate-400" />
-                  Business Contact Coordinates
-                </h4>
-                
-                <div className="flex items-start gap-3">
-                  <Phone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-slate-400 block text-[9px] font-semibold uppercase tracking-wider">WhatsApp Line</span>
-                    <span className="text-slate-800 font-semibold font-mono">+{selectedSellerProfile.contactNumber}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-slate-400 block text-[9px] font-semibold uppercase tracking-wider">Physical Address / Pick-up Base</span>
-                    <span className="text-slate-600 leading-normal">{selectedSellerProfile.address}</span>
-                  </div>
-                </div>
-
-                {/* Trading License / SSM Verification Detail inside coordinates box */}
-                {selectedSellerProfile.ssmNumber ? (
-                  <div className="flex items-start gap-3 border-t border-slate-100 pt-3 mt-3">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-emerald-700 block text-[9px] font-bold uppercase tracking-wider">License / SSM Verified</span>
-                      <span className="text-slate-800 font-extrabold font-mono text-[11px] block mt-0.5">{selectedSellerProfile.ssmNumber}</span>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-normal">
-                        This seller has provided a valid trading license or SSM registration number matching their business profile.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-3 border-t border-rose-100/75 pt-3 mt-3 bg-amber-50/35 p-2.5 rounded-xl border border-amber-100/40">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="text-amber-800 block text-[9px] font-bold uppercase tracking-wider">Unverified Local Business</span>
-                      <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                        Use care and verify the seller identity or pick up directly.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Seller's Ratings & Customer Feedback Section */}
-              <div className="space-y-4 border-t border-slate-100 pt-5">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  Ratings & Customer Feedback
-                </h4>
-
-                {/* Summary row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4.5 rounded-2xl border border-slate-100">
-                  <div className="text-center sm:border-r sm:border-slate-200/60 flex flex-col justify-center py-2">
-                    <span className="text-3xl md:text-4xl font-extrabold text-slate-800 font-mono">
-                      {selectedSellerProfile.sellerAverageRating ? selectedSellerProfile.sellerAverageRating.toFixed(1) : "0.0"}
-                    </span>
-                    <div className="flex justify-center text-amber-500 gap-0.5 my-1.5">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const rating = selectedSellerProfile.sellerAverageRating || 0;
-                        return (
-                          <Star 
-                            key={star} 
-                            className={`w-4 h-4 ${star <= Math.round(rating) ? "fill-amber-500 text-amber-500" : "text-slate-300"}`} 
-                          />
-                        );
-                      })}
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-medium font-sans">
-                      Based on {sellerReviews.length} {sellerReviews.length === 1 ? "rating" : "ratings"}
-                    </span>
-                  </div>
-
-                  <div className="sm:col-span-2 text-xs text-slate-500 flex flex-col justify-center space-y-1.5 px-2">
-                    <p className="font-semibold text-slate-700">How do customers feel?</p>
-                    <p className="leading-relaxed">
-                      Direct feedback helps our homegrown Sabahan entrepreneurs improve and build reliable commercial reputation online.
-                    </p>
-                  </div>
-                </div>
-
-                {/* List of reviews */}
-                <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
-                  {loadingSellerReviews ? (
-                    <div className="text-center py-6 text-slate-400 text-xs">Loading reviews...</div>
-                  ) : sellerReviews.length === 0 ? (
-                    <div className="text-center py-8 bg-slate-50/50 rounded-2xl border border-slate-100 text-slate-400 text-xs">
-                      No reviews yet. Be the first to leave feedback!
-                    </div>
-                  ) : (
-                    sellerReviews.map((rev) => (
-                      <div key={rev.id} className="bg-white border border-slate-100 rounded-2xl p-4 space-y-2 shadow-sm">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-bold text-slate-800 text-xs">{rev.reviewerName}</span>
-                            <div className="flex text-amber-500 gap-0.5 mt-0.5">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star 
-                                  key={star} 
-                                  className={`w-3 h-3 ${star <= rev.rating ? "fill-amber-500 text-amber-500" : "text-slate-200"}`} 
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {new Date(rev.createdAt).toLocaleDateString("en-MY", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric"
-                            })}
-                          </span>
-                        </div>
-                        {rev.comment && (
-                          <p className="text-xs text-slate-600 leading-relaxed italic">
-                            "{rev.comment}"
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Submit review form */}
-                <form onSubmit={handleSellerReviewSubmit} className="bg-slate-50/50 rounded-2xl border border-slate-100 p-4.5 space-y-3.5">
-                  <h5 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
-                    Rate & Leave Feedback
-                  </h5>
-
-                  {sellerReviewSuccess && (
-                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3 font-semibold flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
-                      {sellerReviewSuccess}
-                    </div>
-                  )}
-
-                  {sellerReviewError && (
-                    <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl p-3 font-semibold flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
-                      {sellerReviewError}
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Your Rating
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          type="button"
-                          key={star}
-                          onClick={() => setSellerRatingInput(star)}
-                          className="p-1 cursor-pointer hover:scale-110 transition-transform focus:outline-none"
-                        >
-                          <Star 
-                            className={`w-6 h-6 ${
-                              star <= sellerRatingInput 
-                                ? "fill-amber-400 text-amber-400" 
-                                : "text-slate-300 hover:text-amber-300"
-                            }`} 
-                          />
-                        </button>
-                      ))}
-                      <span className="text-xs text-slate-500 font-semibold ml-2">
-                        {sellerRatingInput === 5 ? "Excellent! (5/5)" :
-                         sellerRatingInput === 4 ? "Very Good! (4/5)" :
-                         sellerRatingInput === 3 ? "Good (3/5)" :
-                         sellerRatingInput === 2 ? "Fair (2/5)" : "Poor (1/5)"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Your Name
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g., Heidi / Aaron"
-                        value={sellerReviewerName}
-                        onChange={(e) => setSellerReviewerName(e.target.value)}
-                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-slate-800"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Your Comment / Feedback
-                      </label>
-                      <textarea
-                        placeholder="How was your order? Was it delicious, fast or high quality? Share your experience..."
-                        value={sellerCommentInput}
-                        onChange={(e) => setSellerCommentInput(e.target.value)}
-                        rows={2}
-                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-slate-800 resize-none"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={submittingSellerReview}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    {submittingSellerReview ? "Submitting..." : "Submit Rating & Feedback"}
-                  </button>
-                </form>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col gap-2.5 pt-2">
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    id="modal-close-action-btn"
-                    onClick={handleCloseSellerProfile}
-                    className="flex-1 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer text-center"
-                  >
-                    Close Profile
-                  </button>
-                  <a
-                    id="modal-whatsapp-link"
-                    href={getWhatsAppLink(selectedSellerProfile)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => handleTrackContactClick(selectedSellerProfile.sellerId)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    Contact Shop Now
-                  </a>
-                </div>
-
-                <button
-                  type="button"
-                  id="modal-report-seller-btn"
-                  onClick={() => {
-                    handleOpenReportModal(selectedSellerProfile);
-                    handleCloseSellerProfile();
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-rose-100 hover:bg-rose-50 text-rose-600 hover:text-rose-700 hover:border-rose-200 font-semibold text-[11px] transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
-                >
-                  <Flag className="w-3.5 h-3.5 shrink-0" />
-                  Report Suspicious Behavior / Scam
-                </button>
-              </div>
-
-            </div>
-          </div>
         </div>
       )}
 

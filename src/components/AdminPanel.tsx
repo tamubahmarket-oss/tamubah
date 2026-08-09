@@ -26,6 +26,43 @@ function buildLinePoints(values: number[], width: number, height: number, paddin
     .join(" ");
 }
 
+// Cloud Monitoring-style area chart: given values plotted against a SHARED
+// max (so multiple series stay honestly comparable on one axis), returns
+// the coordinate array plus ready-to-use SVG path strings for the line and
+// the gradient-filled area beneath it.
+function buildChartGeometry(values: number[], max: number, width: number, height: number, padding = 10) {
+  const stepX = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
+  const points = values.map((v, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - (max > 0 ? (v / max) * (height - padding * 2) : 0);
+    return { x, y, value: v };
+  });
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const areaPath = points.length > 0
+    ? `${linePath} L${points[points.length - 1].x.toFixed(1)},${(height - padding).toFixed(1)} L${points[0].x.toFixed(1)},${(height - padding).toFixed(1)} Z`
+    : "";
+  return { points, linePath, areaPath };
+}
+
+// "Nice" round numbers for a Y-axis: picks grid values that read cleanly
+// (0, 5, 10... or 0, 25, 50...) instead of raw fractions of the max.
+function buildYAxisTicks(max: number, tickCount = 4): number[] {
+  if (max <= 0) return [0];
+  if (max <= tickCount) {
+    // Small integer domains (e.g. a handful of visits) — just count by 1s.
+    return Array.from({ length: max + 1 }, (_, i) => i);
+  }
+  const rawStep = max / tickCount;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  const niceStep = (normalized >= 5 ? 10 : normalized >= 2 ? 5 : normalized >= 1 ? 2 : 1) * magnitude;
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + niceStep * 0.01; v += niceStep) {
+    ticks.push(Math.round(v));
+  }
+  return Array.from(new Set(ticks));
+}
+
 function formatShortDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -113,6 +150,7 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [analyticsDays, setAnalyticsDays] = useState<number>(30);
   const [analyticsLastUpdated, setAnalyticsLastUpdated] = useState<Date | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string>("");
+  const [chartHoverIndex, setChartHoverIndex] = useState<number | null>(null);
 
   // Full, unfiltered, unpaginated seller list — used for the Contact List tab and
   // the all-time growth/engagement charts below (the `sellers` state above is
@@ -1263,43 +1301,113 @@ spec:
                         {/* Trend line: visits vs contact clicks over time */}
                         {analytics.daily.length === 0 ? (
                           <p className="text-xs text-slate-400 italic">No activity recorded yet for this range.</p>
-                        ) : (
-                          <div>
-                            <div className="flex items-center gap-4 mb-2 text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6]">
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#8ab4f8]" />Visits</span>
-                              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#81c995]" />WhatsApp Clicks</span>
+                        ) : (() => {
+                          const CHART_W = 600;
+                          const CHART_H = 180;
+                          const chartMax = Math.max(1, ...analytics.daily.map((d) => d.visits), ...analytics.daily.map((d) => d.contactClicks));
+                          const yTicks = buildYAxisTicks(chartMax);
+                          const visitsGeo = buildChartGeometry(analytics.daily.map((d) => d.visits), chartMax, CHART_W, CHART_H);
+                          const clicksGeo = buildChartGeometry(analytics.daily.map((d) => d.contactClicks), chartMax, CHART_W, CHART_H);
+                          const hovered = chartHoverIndex !== null ? analytics.daily[chartHoverIndex] : null;
+                          const hoverX = chartHoverIndex !== null && visitsGeo.points[chartHoverIndex] ? visitsGeo.points[chartHoverIndex].x : null;
+
+                          const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const relX = (e.clientX - rect.left) / rect.width;
+                            const viewBoxX = relX * CHART_W;
+                            const plotW = CHART_W - 20;
+                            const idx = Math.round(((viewBoxX - 10) / plotW) * (analytics.daily.length - 1));
+                            setChartHoverIndex(Math.max(0, Math.min(analytics.daily.length - 1, idx)));
+                          };
+
+                          return (
+                            <div>
+                              <div className="flex items-center gap-4 mb-2 text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6]">
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#8ab4f8]" />Visits</span>
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#81c995]" />WhatsApp Clicks</span>
+                              </div>
+                              <div className="flex gap-2">
+                                {/* Y-axis value labels */}
+                                <div className="flex flex-col justify-between text-right text-[9px] text-[#9aa0a6] font-mono h-44 py-[10px] w-6 shrink-0">
+                                  {[...yTicks].reverse().map((tick) => (
+                                    <span key={tick}>{tick}</span>
+                                  ))}
+                                </div>
+                                <div className="relative flex-grow">
+                                  <svg
+                                    viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+                                    className="w-full h-44 cursor-crosshair"
+                                    preserveAspectRatio="none"
+                                    onMouseMove={handleChartMouseMove}
+                                    onMouseLeave={() => setChartHoverIndex(null)}
+                                  >
+                                    <defs>
+                                      <linearGradient id="visitsAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#8ab4f8" stopOpacity={0.28} />
+                                        <stop offset="100%" stopColor="#8ab4f8" stopOpacity={0} />
+                                      </linearGradient>
+                                      <linearGradient id="clicksAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#81c995" stopOpacity={0.28} />
+                                        <stop offset="100%" stopColor="#81c995" stopOpacity={0} />
+                                      </linearGradient>
+                                    </defs>
+
+                                    {/* horizontal gridlines, one per Y-axis tick */}
+                                    {yTicks.map((tick) => {
+                                      const y = CHART_H - 10 - (chartMax > 0 ? (tick / chartMax) * (CHART_H - 20) : 0);
+                                      return <line key={tick} x1={10} x2={CHART_W - 10} y1={y} y2={y} stroke="#3c4043" strokeWidth={1} />;
+                                    })}
+
+                                    {/* gradient-filled areas beneath each line */}
+                                    <path d={visitsGeo.areaPath} fill="url(#visitsAreaGradient)" stroke="none" />
+                                    <path d={clicksGeo.areaPath} fill="url(#clicksAreaGradient)" stroke="none" />
+
+                                    {/* the lines themselves */}
+                                    <path d={visitsGeo.linePath} fill="none" stroke="#8ab4f8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                                    <path d={clicksGeo.linePath} fill="none" stroke="#81c995" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+
+                                    {/* hover crosshair + point markers */}
+                                    {hoverX !== null && (
+                                      <>
+                                        <line x1={hoverX} x2={hoverX} y1={10} y2={CHART_H - 10} stroke="#9aa0a6" strokeWidth={1} strokeDasharray="3 3" />
+                                        <circle cx={visitsGeo.points[chartHoverIndex!].x} cy={visitsGeo.points[chartHoverIndex!].y} r={3.5} fill="#8ab4f8" stroke="#202124" strokeWidth={1.5} />
+                                        <circle cx={clicksGeo.points[chartHoverIndex!].x} cy={clicksGeo.points[chartHoverIndex!].y} r={3.5} fill="#81c995" stroke="#202124" strokeWidth={1.5} />
+                                      </>
+                                    )}
+                                  </svg>
+
+                                  {/* Hover tooltip — exact date + values, Cloud Monitoring style */}
+                                  {hovered && hoverX !== null && (
+                                    <div
+                                      className="absolute top-1 z-10 bg-[#2a2b2f] border border-[#5f6368] rounded-md shadow-lg px-2.5 py-2 text-[10px] pointer-events-none whitespace-nowrap"
+                                      style={{
+                                        left: `${(hoverX / CHART_W) * 100}%`,
+                                        transform: hoverX > CHART_W * 0.7 ? "translateX(-100%)" : hoverX < CHART_W * 0.15 ? "translateX(0)" : "translateX(-50%)"
+                                      }}
+                                    >
+                                      <div className="text-[#e8eaed] font-bold mb-1">{formatShortDate(hovered.date)}</div>
+                                      <div className="flex items-center gap-1.5 text-[#9aa0a6]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#8ab4f8]" />
+                                        Visits <span className="text-[#e8eaed] font-mono font-bold ml-auto">{hovered.visits}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 text-[#9aa0a6]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#81c995]" />
+                                        WhatsApp <span className="text-[#e8eaed] font-mono font-bold ml-auto">{hovered.contactClicks}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex justify-between text-[9px] text-[#9aa0a6] font-mono mt-1 pl-8">
+                                <span>{formatShortDate(analytics.daily[0].date)}</span>
+                                {analytics.daily.length > 2 && (
+                                  <span>{formatShortDate(analytics.daily[Math.floor(analytics.daily.length / 2)].date)}</span>
+                                )}
+                                <span>{formatShortDate(analytics.daily[analytics.daily.length - 1].date)}</span>
+                              </div>
                             </div>
-                            <svg viewBox="0 0 600 180" className="w-full h-44" preserveAspectRatio="none">
-                              {/* baseline grid */}
-                              {[0, 1, 2, 3].map((i) => (
-                                <line key={i} x1={8} x2={592} y1={8 + i * 54.67} y2={8 + i * 54.67} stroke="#3c4043" strokeWidth={1} />
-                              ))}
-                              <polyline
-                                points={buildLinePoints(analytics.daily.map((d) => d.visits), 600, 180)}
-                                fill="none"
-                                stroke="#8ab4f8"
-                                strokeWidth={2}
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                              />
-                              <polyline
-                                points={buildLinePoints(analytics.daily.map((d) => d.contactClicks), 600, 180)}
-                                fill="none"
-                                stroke="#81c995"
-                                strokeWidth={2}
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                            <div className="flex justify-between text-[9px] text-[#9aa0a6] font-mono mt-1">
-                              <span>{formatShortDate(analytics.daily[0].date)}</span>
-                              {analytics.daily.length > 2 && (
-                                <span>{formatShortDate(analytics.daily[Math.floor(analytics.daily.length / 2)].date)}</span>
-                              )}
-                              <span>{formatShortDate(analytics.daily[analytics.daily.length - 1].date)}</span>
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* By district — where the engagement is coming from */}
                         <div>

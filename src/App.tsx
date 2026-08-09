@@ -22,7 +22,11 @@ export default function App() {
   const { language, setLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"market" | "sellers" | "shop" | "community">(() => {
     const path = window.location.pathname.replace(/^\/+/, "").split("/")[0];
-    return path === "sellers" ? "sellers" : "market";
+    if (path === "sellers") return "sellers";
+    // A shared/clicked seller link (?sellerId=...) always means "open that
+    // seller's shop" — land straight on the Sellers tab so it's there to open.
+    if (new URLSearchParams(window.location.search).get("sellerId")) return "sellers";
+    return "market";
   });
   const [currentSeller, setCurrentSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -90,6 +94,28 @@ export default function App() {
 
   const handleDistrictClick = (districtName: string) => {
     setMarketLocationFilter(districtName);
+    setActiveTab("market");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Navigate to a seller's full shop (their real product catalog on the
+  // Sellers tab), used wherever a seller is clicked from elsewhere in the
+  // app — a product card, a shared link, etc.
+  const handleViewSellerShop = (sellerId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("sellerId", sellerId);
+    window.history.pushState({}, "", url.pathname + url.search);
+    setActiveTab("sellers");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Navigate to a specific product's detail view on the Market tab, used
+  // when a product is clicked from somewhere other than the Market grid
+  // itself (e.g. from inside a seller's shop).
+  const handleViewProduct = (productId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("productId", productId);
+    window.history.pushState({}, "", url.pathname + url.search);
     setActiveTab("market");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -555,12 +581,14 @@ export default function App() {
             selectedLocation={marketLocationFilter}
             onLocationChange={setMarketLocationFilter}
             initialSearchQuery={globalSearchQuery}
+            onViewSellerShop={handleViewSellerShop}
           />
         ) : activeTab === "sellers" ? (
           <SellerList 
             products={products} 
             onRefreshProducts={fetchProducts}
             initialSearchQuery={globalSearchQuery}
+            onViewProduct={handleViewProduct}
           />
         ) : activeTab === "community" ? (
           currentSeller && currentSeller.isApproved ? (
