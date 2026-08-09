@@ -3,8 +3,8 @@ import {
   BarChart3, Users, ShieldCheck, Star, 
   Clock, AlertTriangle, Search, Filter,
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
-  ExternalLink, Code, Terminal, Info, Settings, Play, Server, FileText,
-  ChevronDown, HelpCircle, Bell, User, MoreVertical, Menu, ShieldAlert,
+  ExternalLink, Code, Terminal, Info, Play, Server, FileText,
+  User, MoreVertical, ShieldAlert,
   Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity
 } from "lucide-react";
 import { Seller, Product } from "../types";
@@ -859,84 +859,6 @@ spec:
 
   return (
     <div className="bg-[#202124] min-h-screen text-[#e8eaed] font-sans antialiased selection:bg-[#8ab4f8]/30 selection:text-[#e8eaed]">
-      
-      {/* 1. GOOGLE CLOUD BAR (DARK THEME) */}
-      <header className="bg-[#18191d] text-white px-4 py-2 flex items-center justify-between text-xs font-medium border-b border-[#2d3033] shadow-md select-none">
-        <div className="flex items-center gap-4">
-          <button className="p-1.5 hover:bg-white/10 rounded-md transition-colors cursor-pointer text-slate-300 hover:text-white">
-            <Menu className="w-4 h-4" />
-          </button>
-          
-          {/* Logo segment */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5 font-bold tracking-tight text-[13px] text-slate-100">
-              {/* Colored polygon logo representing Google Cloud Console */}
-              <div className="flex flex-wrap w-4 h-4 rotate-45 mr-1.5 shrink-0 scale-110">
-                <div className="w-2 h-2 bg-[#ea4335]"></div>
-                <div className="w-2 h-2 bg-[#4285f4]"></div>
-                <div className="w-2 h-2 bg-[#f9ab00]"></div>
-                <div className="w-2 h-2 bg-[#34a853]"></div>
-              </div>
-              <span className="font-extrabold text-slate-200">Google Cloud</span>
-              <span className="text-white/40 font-normal mx-1">Console</span>
-            </div>
-          </div>
-
-          <span className="text-white/20 text-sm">|</span>
-
-          {/* Project selector dropdown */}
-          <div className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 px-2.5 py-1 rounded-md cursor-pointer transition-colors max-w-[200px] truncate">
-            <span className="text-emerald-400 font-bold font-mono text-[10px]">PROD</span>
-            <span className="text-slate-200 font-semibold text-[11px]">tamu-bah-production</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </div>
-        </div>
-
-        {/* Search Input bar */}
-        <div className="hidden md:flex items-center bg-white/10 hover:bg-white/15 focus-within:bg-[#303134] focus-within:text-[#e8eaed] rounded-md px-3 py-1.5 w-full max-w-xl transition-all">
-          <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-          <input 
-            type="text" 
-            placeholder="Search resources, services, APIs, and logs..." 
-            className="bg-transparent border-none text-xs w-full focus:outline-none placeholder-white/40 text-[#e8eaed]"
-          />
-        </div>
-
-        {/* Right tools items */}
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center bg-white/10 rounded-md px-2 py-0.5 text-[10px] text-slate-300 font-mono">
-            <span>Terminal Active (port 3000)</span>
-          </div>
-          
-          <button className="p-1.5 hover:bg-white/10 rounded-full text-slate-200 cursor-pointer relative">
-            <Bell className="w-4 h-4 text-slate-300 hover:text-white" />
-            {stats && stats.totalReports > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-            )}
-          </button>
-          
-          <button className="p-1.5 hover:bg-white/10 rounded-full text-slate-300 hover:text-white cursor-pointer">
-            <HelpCircle className="w-4 h-4" />
-          </button>
-          
-          <button className="p-1.5 hover:bg-white/10 rounded-full text-slate-300 hover:text-white cursor-pointer">
-            <Settings className="w-4 h-4" />
-          </button>
-          
-          <div className="h-6 w-px bg-white/20"></div>
-
-          {/* User profile dropdown info */}
-          <div className="flex items-center gap-2">
-            <div className="hidden lg:block text-right">
-              <span className="text-[10px] block font-semibold text-slate-200">TamuBah Development Team</span>
-              <span className="text-[8px] text-slate-400 block font-mono">Role: System Operator</span>
-            </div>
-            <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[#e8eaed] text-xs shadow-md border border-white/20 uppercase shrink-0">
-              T
-            </div>
-          </div>
-        </div>
-      </header>
 
       {/* 2. BREADCRUMBS & BARS (DARK THEME) */}
       <section className="bg-[#202124] border-b border-[#3c4043] px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1195,7 +1117,7 @@ spec:
                           Seller Plans &amp; Revenue
                         </h3>
                         <p className="text-[10px] text-[#9aa0a6] mt-0.5">
-                          First {stats.planSummary.foundingLimit} sellers are free forever. After that: {stats.planSummary.trial > 0 || stats.planSummary.paid > 0 ? "1-month trial, then " : ""}RM{stats.planSummary.monthlyFeeRM}/month.
+                          First {stats.planSummary.foundingLimit} sellers get their first year free. After that: {stats.planSummary.trial > 0 || stats.planSummary.paid > 0 ? "1-month trial, then " : ""}RM{stats.planSummary.monthlyFeeRM}/month.
                         </p>
                       </div>
                       <div className="text-right">
@@ -1857,6 +1779,11 @@ spec:
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-400/10 px-2 py-0.5 rounded border border-slate-500/20 text-[10px] mb-1.5">
                                   Not Yet Approved
+                                </span>
+                              )}
+                              {((seller as any).planStatus === "founding" || (seller as any).planStatus === "trial") && (seller as any).trialEndsAt && (
+                                <span className="block text-[9px] text-[#9aa0a6] mb-1.5">
+                                  Free until {new Date((seller as any).trialEndsAt).toLocaleDateString("en-MY", { year: "numeric", month: "short", day: "numeric" })}
                                 </span>
                               )}
                               {seller.isApproved && (

@@ -265,7 +265,7 @@ function renderSellerWelcomeEmail(seller: { ownerName: string; businessName: str
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;width:100%;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
             <tr><td style="padding:16px 18px;">
               <p style="margin:0;font-size:14px;line-height:1.6;color:#065f46;">
-                🌟 <strong>You're a Founding Seller</strong> — one of our first 100. Your account is <strong>free forever</strong>, no monthly fee, ever.
+                🌟 <strong>You're a Founding Seller</strong> — one of our first 100. Your account is <strong>free for your first year</strong> on TamuBah, no monthly fee.
               </p>
             </td></tr>
           </table>
@@ -502,11 +502,12 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
 
 const MAX_PUBLISHED_PRODUCTS_PER_SELLER = 1;
 
-// Community-empowerment rollout: the first 100 approved sellers stay free
-// forever ("founding"); every seller after that gets a 1-month free trial
-// before they're expected to start paying RM20/month.
+// Community-empowerment rollout: the first 100 approved sellers get a free
+// founding year ("founding"); every seller after that gets a 1-month free
+// trial before they're expected to start paying RM20/month.
 const FOUNDING_SELLER_LIMIT = 100;
 const TRIAL_LENGTH_DAYS = 30;
+const FOUNDING_FREE_YEAR_DAYS = 365;
 const MONTHLY_SUBSCRIPTION_RM = 20;
 
 async function countPublishedProducts(sellerId: string, excludeProductId?: string) {
@@ -2215,11 +2216,11 @@ async function startServer() {
 
       const now = new Date();
       const planCounts = { pending: 0, founding: 0, trial: 0, paid: 0, expired: 0 };
-      let trialsEndingSoon = 0; // trial sellers with < 7 days left
+      let trialsEndingSoon = 0; // trial or founding sellers with < 7 days left on their free period
       (sellers || []).forEach((s: any) => {
         const status = (s.plan_status || "pending") as keyof typeof planCounts;
         if (planCounts[status] !== undefined) planCounts[status]++;
-        if (status === "trial" && s.trial_ends_at) {
+        if ((status === "trial" || status === "founding") && s.trial_ends_at) {
           const daysLeft = (new Date(s.trial_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
           if (daysLeft <= 7) trialsEndingSoon++;
         }
@@ -2342,8 +2343,8 @@ async function startServer() {
       if (isApproved !== undefined) update.is_approved = !!isApproved;
 
       // First time this seller is approved, slot them into the plan:
-      // founding (free forever) if we're still under the founding cap,
-      // otherwise a 1-month trial that leads into the paid plan.
+      // founding (free for their first year) if we're still under the
+      // founding cap, otherwise a 1-month trial that leads into the paid plan.
       if (isApproved === true && seller.plan_status === "pending") {
         const { count: foundingCount } = await supabase
           .from("sellers")
@@ -2354,6 +2355,7 @@ async function startServer() {
         update.approved_at = now.toISOString();
         if ((foundingCount || 0) < FOUNDING_SELLER_LIMIT) {
           update.plan_status = "founding";
+          update.trial_ends_at = new Date(now.getTime() + FOUNDING_FREE_YEAR_DAYS * 24 * 60 * 60 * 1000).toISOString();
         } else {
           update.plan_status = "trial";
           update.trial_ends_at = new Date(now.getTime() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000).toISOString();

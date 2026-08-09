@@ -276,6 +276,21 @@ create table if not exists app_stats (
 insert into app_stats (id) values (1) on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
+-- analytics_events — raw event log (site visits + WhatsApp contact clicks)
+-- powering the Admin "Live Marketing Analytics" chart.
+-- ---------------------------------------------------------------------------
+create table if not exists analytics_events (
+  id          text primary key,
+  event_type  text not null check (event_type in ('visit', 'contact_click')),
+  seller_id   text references sellers(id) on delete set null,
+  location    text,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_analytics_events_created_at on analytics_events(created_at desc);
+create index if not exists idx_analytics_events_seller_id on analytics_events(seller_id);
+
+-- ---------------------------------------------------------------------------
 -- Lock everything down: enable RLS, add zero policies.
 -- The server always connects with the service role key, which bypasses RLS,
 -- so these tables stay fully usable by your API while being unreachable by
@@ -295,3 +310,4 @@ alter table stories         enable row level security;
 alter table community_topics  enable row level security;
 alter table community_replies enable row level security;
 alter table community_votes   enable row level security;
+alter table analytics_events  enable row level security;
