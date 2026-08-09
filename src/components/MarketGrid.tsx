@@ -71,7 +71,11 @@ export default function MarketGrid({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const sharedId = params.get("productId");
+      // A shared product link is either the pretty /product/:id path, or
+      // the older ?productId=... query param (kept working for any links
+      // already shared before the pretty-path rollout).
+      const pathMatch = window.location.pathname.match(/^\/product\/([^/]+)/);
+      const sharedId = pathMatch ? pathMatch[1] : params.get("productId");
       if (sharedId) {
         setLoadingSharedProduct(true);
         fetch(`/api/products/${sharedId}`)
@@ -106,7 +110,8 @@ export default function MarketGrid({
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.delete("productId");
-      window.history.replaceState({}, "", url.pathname + url.search);
+      const cleanPath = url.pathname.startsWith("/product/") ? "/" : url.pathname;
+      window.history.replaceState({}, "", cleanPath + url.search);
     }
   };
 
@@ -116,9 +121,7 @@ export default function MarketGrid({
   const handleOpenProductDetail = (p: Product) => {
     setSharedProduct(p);
     if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("productId", p.id);
-      window.history.pushState({}, "", url.pathname + url.search);
+      window.history.pushState({}, "", `/product/${p.id}`);
     }
   };
 
@@ -276,7 +279,7 @@ export default function MarketGrid({
   const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
 
   const handleShareProduct = async (p: Product) => {
-    const shareUrl = `${window.location.origin}/?productId=${p.id}`;
+    const shareUrl = `${window.location.origin}/product/${p.id}`;
     const shareText = `Check out "${p.title}" (RM ${p.price.toFixed(2)}) from "${p.businessName}" on TamuBah Sabah Entrepreneur Marketplace! Click here to see it:\n\n${shareUrl}`;
 
     setShareModalData({

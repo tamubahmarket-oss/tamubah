@@ -59,18 +59,14 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const handleOpenSellerModal = (s: SellerWithStats) => {
     setActiveSellerModal(s);
     if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("sellerId", s.id);
-      window.history.replaceState({}, "", url.pathname + url.search);
+      window.history.replaceState({}, "", `/seller/${s.id}`);
     }
   };
 
   const handleCloseSellerModal = () => {
     setActiveSellerModal(null);
     if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("sellerId");
-      window.history.replaceState({}, "", url.pathname + url.search);
+      window.history.replaceState({}, "", "/sellers");
     }
   };
 
@@ -188,7 +184,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
 
   const handleShareProduct = async (p: Product, businessName: string) => {
-    const shareUrl = `${window.location.origin}/?productId=${p.id}`;
+    const shareUrl = `${window.location.origin}/product/${p.id}`;
     const shareText = `Check out "${p.title}" (RM ${p.price.toFixed(2)}) from "${businessName}" on TamuBah Sabah Entrepreneur Marketplace! Click here to see it:\n\n${shareUrl}`;
 
     setShareModalData({
@@ -212,7 +208,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const [copiedSellerId, setCopiedSellerId] = useState<string | null>(null);
 
   const handleShareSellerProfile = async (sellerId: string, businessName: string) => {
-    const shareUrl = `${window.location.origin}/?sellerId=${sellerId}`;
+    const shareUrl = `${window.location.origin}/seller/${sellerId}`;
     const shareText = `Check out "${businessName}" on TamuBah Sabah Entrepreneur Marketplace! View their home-based products and ratings here:\n\n${shareUrl}`;
 
     setShareModalData({
@@ -239,7 +235,10 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   useEffect(() => {
     if (typeof window !== "undefined" && sellers.length > 0) {
       const params = new URLSearchParams(window.location.search);
-      const sharedSellerId = params.get("sellerId");
+      // Pretty /seller/:id path takes priority; ?sellerId=... still works
+      // for any links shared before the pretty-path rollout.
+      const pathMatch = window.location.pathname.match(/^\/seller\/([^/]+)/);
+      const sharedSellerId = pathMatch ? pathMatch[1] : params.get("sellerId");
       if (sharedSellerId) {
         const foundSeller = sellers.find(s => s.id === sharedSellerId);
         if (foundSeller) {

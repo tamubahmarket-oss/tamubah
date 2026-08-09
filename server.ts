@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -226,6 +227,31 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
     console.error(`Failed to send email to ${to}:`, err.message);
     return false;
   }
+}
+
+// Injects per-page Open Graph / Twitter Card / <title> values into the SPA's
+// index.html on the way out, so a shared /product/:id or /seller/:id link
+// shows the actual product photo, title and price (or seller's shop info)
+// as a rich preview card in WhatsApp/Facebook/Telegram — instead of every
+// shared link showing the same generic TamuBah homepage preview.
+function injectMetaTags(html: string, meta: { title: string; description: string; image: string; url: string }): string {
+  const esc = (s: string) =>
+    String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const title = esc(meta.title);
+  const description = esc(meta.description);
+  const image = esc(meta.image);
+  const url = esc(meta.url);
+
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+    .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
+    .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
+    .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${description}$2`)
+    .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${image}$2`)
+    .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${url}$2`)
+    .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
+    .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${description}$2`)
+    .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${image}$2`);
 }
 
 function emailShell(bodyHtml: string): string {
@@ -625,6 +651,15 @@ async function startServer() {
 
   const app = express();
   const PORT = parseInt(process.env.PORT || "3000", 10);
+  const isProd = process.env.NODE_ENV === "production";
+  const distPath = path.join(process.cwd(), "dist");
+
+  // Created up-front (instead of only at the very end) so the SSR
+  // meta-tag routes below can also run index.html through Vite's dev
+  // transform, keeping HMR/dev behavior identical to the plain SPA route.
+  const vite = isProd
+    ? null
+    : await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -2792,16 +2827,71 @@ async function startServer() {
   });
 
   // ---------------------------------------------------------------------
+  // SSR META TAGS — /product/:id and /seller/:id
+  // Pretty, shareable URLs that also carry the right Open Graph preview
+  // (photo, title, description) for WhatsApp/Facebook/Telegram link
+  // previews. The React app still renders the actual page client-side —
+  // this only swaps in the right <title>/<meta> tags before the HTML
+  // reaches the browser (or a chat app's link-preview crawler).
+  // ---------------------------------------------------------------------
+  async function readIndexHtmlForRequest(reqUrl: string): Promise<string> {
+    if (isProd) {
+      return fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
+    }
+    const raw = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf-8");
+    return vite ? await vite.transformIndexHtml(reqUrl, raw) : raw;
+  }
+
+  app.get("/product/:id", async (req, res) => {
+    try {
+      let html = await readIndexHtmlForRequest(req.originalUrl);
+      const { data: product } = await supabase.from("products").select("*").eq("id", req.params.id).maybeSingle();
+      if (product) {
+        const { data: seller } = await supabase.from("sellers").select("business_name").eq("id", product.seller_id).maybeSingle();
+        const businessName = seller ? seller.business_name : "a local Sabah seller";
+        html = injectMetaTags(html, {
+          title: `${product.title} — RM${Number(product.price).toFixed(2)} | TamuBah`,
+          description: (product.description && product.description.trim())
+            ? product.description.slice(0, 200)
+            : `Available now from ${businessName} on TamuBah — Sabah's home-based marketplace.`,
+          image: product.image_url || `${APP_BASE_URL}/tamubah-logo-email.png`,
+          url: `${APP_BASE_URL}/product/${product.id}`,
+        });
+      }
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } catch (err) {
+      console.error("GET /product/:id (SSR)", err);
+      res.status(500).send("Failed to load page.");
+    }
+  });
+
+  app.get("/seller/:id", async (req, res) => {
+    try {
+      let html = await readIndexHtmlForRequest(req.originalUrl);
+      const { data: seller } = await supabase.from("sellers").select("*").eq("id", req.params.id).maybeSingle();
+      if (seller) {
+        html = injectMetaTags(html, {
+          title: `${seller.business_name} | TamuBah`,
+          description: (seller.dream && seller.dream.trim())
+            ? seller.dream.slice(0, 200)
+            : `A home-based business from ${seller.location || "Sabah"} on TamuBah — order directly via WhatsApp.`,
+          image: seller.logo_url || `${APP_BASE_URL}/tamubah-logo-email.png`,
+          url: `${APP_BASE_URL}/seller/${seller.id}`,
+        });
+      }
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } catch (err) {
+      console.error("GET /seller/:id (SSR)", err);
+      res.status(500).send("Failed to load page.");
+    }
+  });
+
+  // ---------------------------------------------------------------------
   // VITE DEV / PRODUCTION HANDLERS
   // ---------------------------------------------------------------------
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+  if (!isProd && vite) {
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
