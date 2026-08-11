@@ -37,6 +37,7 @@ export interface Product {
   imageUrl: string;
   isAvailable: boolean;
   isPublished?: boolean;
+  sortOrder?: number;
   sellerId: string;
   createdAt: string;
   // Enriched fields from server join:

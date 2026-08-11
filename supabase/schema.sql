@@ -88,6 +88,10 @@ create table if not exists products (
   -- unpublish their current live product, or an admin grants an exception
   -- via the publish_requests table below.
   is_published  boolean not null default true,
+  -- Manual admin-controlled display order within the (pinned / regular)
+  -- group, set by dragging rows in the admin "Revisions & Products" tab.
+  -- Lower numbers show first; ties fall back to created_at desc.
+  sort_order    integer not null default 0,
   seller_id     text not null references sellers(id) on delete cascade,
   created_at    timestamptz not null default now()
 );
@@ -97,10 +101,14 @@ create table if not exists products (
 -- live listings stay visible after the upgrade.
 alter table products add column if not exists is_published boolean not null default true;
 
+-- Safe to re-run: adds the drag-reorder column to an existing database.
+alter table products add column if not exists sort_order integer not null default 0;
+
 create index if not exists idx_products_seller_id on products(seller_id);
 create index if not exists idx_products_category on products(category);
 create index if not exists idx_products_created_at on products(created_at desc);
 create index if not exists idx_products_is_published on products(is_published);
+create index if not exists idx_products_sort_order on products(sort_order);
 
 -- ---------------------------------------------------------------------------
 -- publish_requests — a seller who already has 1 published product but wants

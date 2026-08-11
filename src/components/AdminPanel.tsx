@@ -5,7 +5,8 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Play, Server, FileText,
   User, MoreVertical, ShieldAlert,
-  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity
+  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity,
+  GripVertical
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -759,6 +760,63 @@ spec:
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // --- Drag-to-reorder for the Revisions & Products table ---
+  const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
+  const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
+  const [isSavingProductOrder, setIsSavingProductOrder] = useState(false);
+
+  const persistProductOrder = async (orderedIds: string[]) => {
+    try {
+      setIsSavingProductOrder(true);
+      const res = await fetch("/api/admin/products/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: orderedIds })
+      });
+      if (res.ok) {
+        onRefreshMarket();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to save the new order.");
+        await fetchAdminData();
+      }
+    } catch (error) {
+      console.error("Error saving product order", error);
+      window.alert("Failed to save the new order.");
+      await fetchAdminData();
+    } finally {
+      setIsSavingProductOrder(false);
+    }
+  };
+
+  const handleProductDrop = (targetProductId: string) => {
+    const sourceId = draggedProductId;
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+    if (!sourceId || sourceId === targetProductId) return;
+
+    // Reorder within whatever's currently visible (respects search/pin filter);
+    // items outside the current filter keep their existing slot untouched.
+    const visibleIds = filteredProducts.map((p) => p.id);
+    const fromIndex = visibleIds.indexOf(sourceId);
+    const toIndex = visibleIds.indexOf(targetProductId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const reorderedVisibleIds = [...visibleIds];
+    reorderedVisibleIds.splice(fromIndex, 1);
+    reorderedVisibleIds.splice(toIndex, 0, sourceId);
+
+    const visibleSet = new Set(reorderedVisibleIds);
+    const byId = new Map(products.map((p) => [p.id, p]));
+    let cursor = 0;
+    const nextProducts = products.map((p) =>
+      visibleSet.has(p.id) ? byId.get(reorderedVisibleIds[cursor++])! : p
+    );
+
+    setProducts(nextProducts);
+    persistProductOrder(reorderedVisibleIds);
   };
 
   const handleReportStatus = async (reportId: string, status: "resolved" | "dismissed") => {
@@ -2067,11 +2125,20 @@ spec:
                   </div>
                 </div>
 
+                <div className="px-4 py-2 bg-[#2a2b2f] border-b border-[#3c4043] flex items-center gap-1.5 text-[10px] text-slate-400 font-sans">
+                  <GripVertical className="w-3 h-3 shrink-0" />
+                  Drag rows by the handle to reorder how listings appear on the market.
+                  {isSavingProductOrder && <span className="text-[#8ab4f8] font-bold ml-1">Saving order…</span>}
+                </div>
+
                 {/* Table list */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-[#3c4043] bg-[#202124] text-[#9aa0a6] font-bold uppercase tracking-wider text-[9px]">
+                        <th className="py-3 px-4 w-8" title="Drag to reorder">
+                          <GripVertical className="w-3.5 h-3.5 text-slate-500" />
+                        </th>
                         <th className="py-3 px-4">Local Product Artifact Details</th>
                         <th className="py-3 px-4">Local Creator (Service Namespace)</th>
                         <th className="py-3 px-4">Standard Pricing (MYR)</th>
@@ -2082,15 +2149,44 @@ spec:
                     <tbody className="divide-y divide-[#3c4043] text-[#bdc1c6]">
                       {filteredProducts.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-slate-400 italic">
+                          <td colSpan={6} className="py-12 text-center text-slate-400 italic">
                             No products match the selected filters.
                           </td>
                         </tr>
                       ) : (
                         filteredProducts.map((product) => {
                           const isProductPinned = (product as any).isPinned;
+                          const isDragging = draggedProductId === product.id;
+                          const isDragOver = dragOverProductId === product.id && draggedProductId !== product.id;
                           return (
-                            <tr key={product.id} className="hover:bg-[#2d3033] transition-colors font-mono text-[11px]">
+                            <tr
+                              key={product.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedProductId(product.id);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnter={() => {
+                                if (draggedProductId && draggedProductId !== product.id) {
+                                  setDragOverProductId(product.id);
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                handleProductDrop(product.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedProductId(null);
+                                setDragOverProductId(null);
+                              }}
+                              className={`hover:bg-[#2d3033] transition-colors font-mono text-[11px] cursor-grab active:cursor-grabbing ${
+                                isDragging ? "opacity-40" : ""
+                              } ${isDragOver ? "border-t-2 border-t-[#8ab4f8]" : ""}`}
+                            >
+                              <td className="py-4 px-4 text-slate-500">
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </td>
                               <td className="py-4 px-4 font-sans">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded bg-[#2a2b2f] border border-[#3c4043] overflow-hidden shrink-0">
