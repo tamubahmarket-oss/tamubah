@@ -42,9 +42,11 @@ export default function ShareModal({ isOpen, onClose, title, subtitle, shareUrl,
     {
       name: "Threads",
       icon: (
-        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-          <path d="M12.03 21.496c-2.217 0-4.127-.947-5.307-2.456-1.921-2.456-1.89-6.353-.122-8.618 1.157-1.482 2.87-2.21 5.124-2.21 2.218 0 3.868.728 4.904 2.164.883 1.231.913 2.943.091 4.113-.578.82-1.52 1.261-2.613 1.261-1.407 0-2.29-.82-2.29-2.128v-2.735c0-1.125.79-1.914 1.914-1.914s1.914.79 1.914 1.914v1.732a.578.578 0 1 0 1.155 0v-1.732c0-1.763-1.306-3.07-3.07-3.07s-3.07 1.306-3.07 3.07v2.735c0 1.945 1.277 3.283 3.444 3.283 1.611 0 2.943-.668 3.61-1.793.852-1.43.821-3.617-.213-5.06-1.276-1.778-3.465-2.674-6.352-2.674-3.222 0-5.744 1.064-7.295 3.07-2.432 3.146-2.4 8.298.092 11.49 1.58 2.02 4.073 3.07 7.234 3.07 2.522 0 4.772-.669 6.505-1.945a.577.577 0 0 0-.669-.942c-1.55 1.14-3.556 1.732-5.836 1.732Z" />
-        </svg>
+        <img
+          src="/Screenshot 2026-08-11 at 10.39.18 AM.png"
+          alt="Threads"
+          className="w-5 h-5 object-contain rounded-sm"
+        />
       ),
       color: "bg-slate-50 text-slate-900 hover:bg-slate-100 border-slate-200/40 hover:text-slate-950 hover:shadow-slate-100/50",
       url: `https://www.threads.net/intent/post?text=${encodeURIComponent(shareText + "\n\n" + shareUrl)}`,
