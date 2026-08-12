@@ -179,7 +179,20 @@ export const SABAH_LOCATIONS = [
   "Kudat",
   "Ranau",
   "Beaufort",
-  "Kota Belud"
+  "Kota Belud",
+  "Tambunan",
+  "Kunak",
+  "Kinabatangan",
+  "Beluran",
+  "Telupid",
+  "Pitas",
+  "Kota Marudu",
+  "Tamparuli",
+  "Tenom",
+  "Sipitang",
+  "Sook",
+  "Nabawan",
+  "Kalabakan"
 ];
 
 export const BUSINESS_CATEGORIES = [
