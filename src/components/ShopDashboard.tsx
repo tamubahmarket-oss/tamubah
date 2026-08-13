@@ -3,7 +3,7 @@ import {
   Plus, Trash2, ToggleLeft, ToggleRight, LogOut, Upload, ShoppingBag, 
   MapPin, Check, AlertCircle, RefreshCw, Layers, DollarSign, FileText, CheckCircle,
   Briefcase, Calendar, User, Phone, Building, Star, Globe, Heart, MessageCircle,
-  Receipt as ReceiptIcon, Minus, Truck, Share2, Lock
+  Receipt as ReceiptIcon, Minus, Truck, Share2, Lock, Pencil, X
 } from "lucide-react";
 import { Seller, Product, BUSINESS_CATEGORIES, SABAH_LOCATIONS } from "../types";
 import { compressAndResizeImage } from "../utils";
@@ -342,6 +342,20 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [price, setPrice] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
+
+  // --- Edit Product modal state (kept separate from the "create" form
+  // state above so editing an existing listing never interferes with
+  // whatever the seller currently has typed into the create form) ---
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState(BUSINESS_CATEGORIES[0]);
+  const [editDescription, setEditDescription] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
+  const [editImageUploading, setEditImageUploading] = useState(false);
+  const [editDragActive, setEditDragActive] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
@@ -595,6 +609,121 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       processFile(e.target.files[0]);
+    }
+  };
+
+  // --- Edit Product modal: image upload (mirrors processFile above, but
+  // writes into the edit-specific state instead of the create form) ---
+  const processEditFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setEditError("Please select an image file (PNG, JPG, JPEG, WEBP).");
+      return;
+    }
+    try {
+      const compressedBase64 = await compressAndResizeImage(file, 1000, 0.8, "image/webp");
+      setEditImageUrl(compressedBase64); // instant local preview
+      setEditError(null);
+
+      setEditImageUploading(true);
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl: compressedBase64, folder: "products" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to upload image.");
+      setEditImageUrl(data.url); // swap preview for the real, lightweight URL
+    } catch (err: any) {
+      console.error("Compression/upload error:", err);
+      setEditError("Failed to process and upload the product image. Please try another image.");
+    } finally {
+      setEditImageUploading(false);
+    }
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processEditFile(e.target.files[0]);
+    }
+  };
+
+  const handleEditDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setEditDragActive(true);
+    } else if (e.type === "dragleave") {
+      setEditDragActive(false);
+    }
+  };
+
+  const handleEditDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processEditFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleOpenEdit = (product: Product) => {
+    setEditingProduct(product);
+    setEditTitle(product.title);
+    setEditCategory(product.category);
+    setEditDescription(product.description);
+    setEditPrice(String(product.price));
+    setEditImageUrl(product.imageUrl);
+    setEditError(null);
+  };
+
+  const handleCloseEdit = () => {
+    setEditingProduct(null);
+    setEditError(null);
+  };
+
+  const handleSaveEditProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    setEditError(null);
+
+    if (!editTitle.trim() || !editCategory || !editDescription.trim() || !editPrice || !editImageUrl) {
+      setEditError("All fields are required. Remember, a picture is a MUST!");
+      return;
+    }
+    if (editImageUploading) {
+      setEditError("Please wait for the photo to finish uploading.");
+      return;
+    }
+    const numericPrice = parseFloat(editPrice);
+    if (isNaN(numericPrice) || numericPrice <= 0) {
+      setEditError("Please enter a valid price greater than 0.");
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const response = await fetch(`/api/products/${editingProduct.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sellerId: seller.id,
+          title: editTitle,
+          category: editCategory,
+          description: editDescription,
+          price: numericPrice,
+          imageUrl: editImageUrl,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update product.");
+
+      setProducts(products.map((p) => (p.id === editingProduct.id ? { ...p, ...data.product } : p)));
+      onRefreshMarket();
+      handleCloseEdit();
+    } catch (err: any) {
+      setEditError(err.message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -1146,7 +1275,16 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                       </span>
                     </div>
 
-                    <div className="absolute top-3 right-3 z-10">
+                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+                      <button
+                        id={`edit-product-btn-${p.id}`}
+                        onClick={() => handleOpenEdit(p)}
+                        disabled={actionLoading === p.id}
+                        className="bg-white/90 hover:bg-white text-slate-600 hover:text-emerald-700 p-2 rounded-xl shadow-sm border border-slate-200/70 transition-colors cursor-pointer"
+                        title="Edit product"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <button
                         id={`delete-product-btn-${p.id}`}
                         onClick={() => handleDeleteTrigger(p.id)}
@@ -2043,6 +2181,180 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       )}
 
       {/* Custom Delete Confirmation Modal */}
+      {/* Edit Product Modal */}
+      {editingProduct && (
+        <div id="edit-product-overlay" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800 my-8">
+            <div className="bg-gradient-to-br from-emerald-950 to-emerald-900 p-5 text-white flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-lg">Edit Product</h3>
+                <p className="text-emerald-200 text-xs mt-1">
+                  Update the details for "{editingProduct.title}"
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseEdit}
+                className="text-emerald-200 hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditProduct} className="p-5 space-y-4">
+              {editError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-2 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Product Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {BUSINESS_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setEditCategory(cat)}
+                      className={`flex flex-col items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border text-[10px] font-semibold text-center transition-all cursor-pointer ${
+                        editCategory === cat
+                          ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50"
+                      }`}
+                    >
+                      <CategoryIcon category={cat} className="w-6 h-6 shrink-0" />
+                      <span className="leading-tight line-clamp-2">{cat}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Price (RM) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 font-medium text-sm">
+                    RM
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.10"
+                    required
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Product Image <span className="text-red-500">*</span>
+                </label>
+                {editImageUrl ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 h-40 group">
+                    <img
+                      src={editImageUrl}
+                      alt="Edit preview"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEditImageUrl("")}
+                        className="bg-white/95 hover:bg-white text-rose-600 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm cursor-pointer"
+                      >
+                        Remove Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onDragEnter={handleEditDrag}
+                    onDragOver={handleEditDrag}
+                    onDragLeave={handleEditDrag}
+                    onDrop={handleEditDrop}
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all ${
+                      editDragActive
+                        ? "border-emerald-500 bg-emerald-50/50"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      id="edit-file-upload-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleEditFileChange}
+                      className="hidden"
+                    />
+                    <label htmlFor="edit-file-upload-input" className="cursor-pointer block">
+                      <Upload className="w-8 h-8 text-slate-400 mx-auto mb-1.5" />
+                      <span className="text-xs font-semibold text-slate-800 block">
+                        Drag & Drop or <span className="text-emerald-600 hover:underline">Browse File</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        PNG, JPG, JPEG up to 5MB
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCloseEdit}
+                  disabled={editLoading}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-55"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading || editImageUploading}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer disabled:opacity-55"
+                >
+                  {editImageUploading ? "Uploading photo..." : editLoading ? "Saving..." : "Save Changes"}
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {deleteConfirmProductId && (
         <div id="delete-confirm-overlay" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">

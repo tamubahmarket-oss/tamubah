@@ -473,6 +473,7 @@ interface ProductRow {
   is_available: boolean;
   is_pinned: boolean;
   is_published: boolean;
+  sort_order: number | null;
   seller_id: string;
   created_at: string;
 }
@@ -520,6 +521,7 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
     isAvailable: p.is_available,
     isPinned: p.is_pinned,
     isPublished: p.is_published,
+    sortOrder: p.sort_order ?? 0,
     sellerId: p.seller_id,
     createdAt: p.created_at,
     ...extra,
@@ -1459,6 +1461,9 @@ async function startServer() {
         const pinA = a.isPinned ? 1 : 0;
         const pinB = b.isPinned ? 1 : 0;
         if (pinA !== pinB) return pinB - pinA;
+        const orderA = a.sortOrder ?? 0;
+        const orderB = b.sortOrder ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
@@ -1545,6 +1550,52 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/products", err);
       res.status(500).json({ error: "Failed to create product." });
+    }
+  });
+
+  // Seller edits their own product's core details (title, category,
+  // description, price, image). Availability/publish state has its own
+  // dedicated endpoints above and is left untouched here.
+  app.patch("/api/products/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { sellerId, title, category, description, price, imageUrl } = req.body;
+
+      if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
+      if (!title || !category || !description || !price || !imageUrl) {
+        return res.status(400).json({ error: "All product fields are required, including an uploaded image." });
+      }
+
+      const numericPrice = parseFloat(price);
+      if (isNaN(numericPrice) || numericPrice <= 0) {
+        return res.status(400).json({ error: "Please enter a valid price greater than 0." });
+      }
+
+      const { data: product } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
+      if (!product) return res.status(404).json({ error: "Product not found." });
+      if (product.seller_id !== sellerId) return res.status(403).json({ error: "Unauthorized to update this product." });
+
+      const { data: seller } = await supabase.from("sellers").select("is_approved").eq("id", sellerId).maybeSingle();
+      if (!seller || !seller.is_approved) return res.status(403).json({ error: "Unauthorized. Your account is pending admin approval." });
+
+      const { data: updated, error } = await supabase
+        .from("products")
+        .update({
+          title,
+          category,
+          description,
+          price: numericPrice,
+          image_url: imageUrl,
+        })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      res.json({ success: true, product: productToApi(updated as ProductRow) });
+    } catch (err: any) {
+      console.error("PATCH /api/products/:id", err);
+      res.status(500).json({ error: "Failed to update product." });
     }
   });
 
@@ -2539,6 +2590,32 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/admin/products/:id/pin", err);
       res.status(500).json({ error: "Failed to update product." });
+    }
+  });
+
+  // NEW: admins can drag-reorder the product list in the Revisions & Products
+  // tab. Body is the full list of product ids in their new display order;
+  // each id's position in the array becomes its sort_order (0 = first).
+  app.post("/api/admin/products/reorder", requireAdminAuth, async (req, res) => {
+    try {
+      const { order } = req.body as { order?: string[] };
+      if (!Array.isArray(order) || order.length === 0) {
+        return res.status(400).json({ error: "order must be a non-empty array of product ids." });
+      }
+
+      const { error } = await Promise.all(
+        order.map((id, index) => supabase.from("products").update({ sort_order: index }).eq("id", id))
+      ).then((results) => {
+        const failed = results.find((r: any) => r.error);
+        return { error: failed ? failed.error : null };
+      });
+      if (error) throw error;
+
+      await addAdminLog("product_reordered", `Reordered ${order.length} product(s) in Revisions & Products.`);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("POST /api/admin/products/reorder", err);
+      res.status(500).json({ error: "Failed to save the new product order." });
     }
   });
 
