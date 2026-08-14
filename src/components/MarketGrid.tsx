@@ -196,15 +196,15 @@ export default function MarketGrid({
   useEffect(() => {
     // showAll + a high limit — the default /api/sellers call caps at 50 rows,
     // which was silently freezing this counter at 50 once total sellers passed
-    // that mark. Also count actual "founding" (free-first-year) sellers, not just
-    // every registered seller, since that's what the 100-slot promo tracks.
+    // that mark. This now counts every registered seller (not just founding
+    // ones) since the banner shows an evergreen "join the Guild" growth stat
+    // rather than a capped, sold-out-able promo counter.
     fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           setSellersList(data);
-          const foundingCount = data.filter((s: any) => s.planStatus === "founding").length;
-          setSellerCount(foundingCount);
+          setSellerCount(data.length);
         }
       })
       .catch((err) => console.error("Failed to load sellers list in MarketGrid", err))
@@ -359,7 +359,7 @@ export default function MarketGrid({
         </p>
       </div>
 
-      {/* Real-time Promotion spots alert banner */}
+      {/* Guild invitation banner — evergreen, no scarcity/sold-out framing */}
       <div className="max-w-4xl mx-auto mb-10 bg-gradient-to-br from-emerald-800 to-teal-900 rounded-3xl p-6 text-white shadow-lg border border-emerald-500/20 relative overflow-hidden">
         {/* Decorative ambient elements */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
@@ -385,17 +385,16 @@ export default function MarketGrid({
             </div>
           </div>
           
-          {/* Real-time Counter Badge */}
+          {/* Evergreen growth stat — total sellers who've joined the Guild so far */}
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center shrink-0 w-full md:w-auto min-w-[180px]">
             <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-200">
               {t("promo_onboarded")}
             </div>
             <div className="text-3xl font-black text-white my-1 flex items-baseline justify-center gap-1.5">
               <span>{loadingSellers ? "..." : sellerCount}</span>
-              <span className="text-emerald-300 text-xs font-semibold">/ 100</span>
             </div>
             <div className="text-[10px] font-black uppercase text-emerald-200 bg-emerald-800/40 px-2 py-1 rounded-lg border border-emerald-500/20 inline-block">
-              {100 - sellerCount > 0 ? `${100 - sellerCount} ${t("slots_remaining")}` : t("promo_sold_out")}
+              {t("promo_no_charge")}
             </div>
           </div>
         </div>

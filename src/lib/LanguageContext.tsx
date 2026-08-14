@@ -21,12 +21,13 @@ const translations: Record<Language, Record<string, string>> = {
     order_authentic: "Order authentic homemade cakes, local Sabah meals, fresh brew, traditional ingredients, and unique crafts directly from small entrepreneurs operating right from their homes in Sabah.",
     
     // Promo Banner
-    promo_badge: "Sabah Early Bird Promotion",
-    promo_sub: "RM0 Subscription Fee",
-    promo_title: "First 100 Micro-Shops: 1 Year Free Premium Promotion!",
-    promo_desc: "Support and build your business. The first 100 registered Sabahan entrepreneurs pay RM0 for 12 months. Normal rate RM20/month. No hidden charges!",
-    promo_onboarded: "Successfully Onboarded",
+    promo_badge: "TamuBah Guild",
+    promo_sub: "30-Day Free Trial",
+    promo_title: "Join the TamuBah Guild \u2014 Try It Free, Zero Risk",
+    promo_desc: "Start your shop and get 30 days to try TamuBah completely free. No charge will be applied, and it's entirely up to you whether to continue afterward. No pressure, no obligations.",
+    promo_onboarded: "Sabahan Entrepreneurs in the Guild",
     slots_remaining: "slots remaining!",
+    promo_no_charge: "No Charge Applied",
     promo_sold_out: "Promotion Sold Out!",
 
     // Filter Controls
@@ -108,12 +109,13 @@ const translations: Record<Language, Record<string, string>> = {
     order_authentic: "Pesan kek buatan sendiri yang tulen, hidangan tempatan Sabah, minuman segar, bahan tradisional, dan kraf unik terus daripada usahawan kecil yang beroperasi dari rumah mereka di Sabah.",
 
     // Promo Banner
-    promo_badge: "Promosi Awal Sabah",
-    promo_sub: "Yuran Langganan RM0",
-    promo_title: "100 Kedai Mikro Pertama: Promosi Premium Percuma 1 Tahun!",
-    promo_desc: "Sokong dan bina perniagaan anda. 100 usahawan Sabah berdaftar pertama membayar RM0 selama 12 bulan. Kadar biasa RM20/bulan. Tiada caj tersembunyi!",
-    promo_onboarded: "Berjaya Disertakan",
+    promo_badge: "Gabungan TamuBah",
+    promo_sub: "Percubaan Percuma 30 Hari",
+    promo_title: "Sertai Gabungan TamuBah \u2014 Cuba Percuma, Tanpa Risiko",
+    promo_desc: "Mulakan kedai anda dan dapatkan 30 hari untuk mencuba TamuBah sepenuhnya percuma. Tiada caj akan dikenakan, dan terpulang sepenuhnya kepada anda sama ada mahu teruskan selepas itu. Tiada tekanan, tiada sebarang komitmen.",
+    promo_onboarded: "Usahawan Sabah dalam Gabungan",
     slots_remaining: "slot tinggal!",
+    promo_no_charge: "Tiada Caj Dikenakan",
     promo_sold_out: "Promosi Habis Dijual!",
 
     // Filter Controls
