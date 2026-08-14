@@ -382,6 +382,10 @@ export default function MarketGrid({
               <p className="text-emerald-100/90 text-xs mt-1 leading-relaxed max-w-xl">
                 {t("promo_desc")}
               </p>
+              <p className="text-emerald-200/70 text-[11px] mt-2 leading-relaxed max-w-xl flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                {t("promo_fee_note")}
+              </p>
             </div>
           </div>
           
