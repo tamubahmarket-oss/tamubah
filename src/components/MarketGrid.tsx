@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
-  X, User, Hand, Handbag, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
+  X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
   Share2, Check, Store, Star
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -43,7 +43,6 @@ export default function MarketGrid({
     return "";
   });
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [sellersList, setSellersList] = useState<any[]>([]);
   const [localLocation, setLocalLocation] = useState<string>("All");
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
@@ -188,28 +187,6 @@ export default function MarketGrid({
   useEffect(() => {
     fetchLocalProducts();
   }, [page, debouncedSearchQuery, selectedCategory, selectedLocation]);
-
-  // Real-time seller counts for promo tracking
-  const [sellerCount, setSellerCount] = useState<number>(0);
-  const [loadingSellers, setLoadingSellers] = useState<boolean>(true);
-
-  useEffect(() => {
-    // showAll + a high limit — the default /api/sellers call caps at 50 rows,
-    // which was silently freezing this counter at 50 once total sellers passed
-    // that mark. This now counts every registered seller (not just founding
-    // ones) since the banner shows an evergreen "join the Guild" growth stat
-    // rather than a capped, sold-out-able promo counter.
-    fetch("/api/sellers?showAll=true&limit=1000", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setSellersList(data);
-          setSellerCount(data.length);
-        }
-      })
-      .catch((err) => console.error("Failed to load sellers list in MarketGrid", err))
-      .finally(() => setLoadingSellers(false));
-  }, [localProducts]);
 
   // Seller reporting states
   const [reportingProduct, setReportingProduct] = useState<Product | null>(null);
@@ -357,82 +334,6 @@ export default function MarketGrid({
         <p className="relative text-slate-500 text-sm md:text-base mt-4 font-sans leading-relaxed">
           {t("order_authentic")}
         </p>
-      </div>
-
-      {/* Guild invitation banner — evergreen, no scarcity/sold-out framing */}
-      <div className="max-w-4xl mx-auto mb-10 bg-gradient-to-br from-emerald-800 to-teal-900 rounded-3xl p-6 text-white shadow-lg border border-emerald-500/20 relative overflow-hidden">
-        {/* Decorative ambient elements */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
-        <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white/5 rounded-full blur-xl"></div>
-        
-        <div className="flex flex-col md:flex-row items-center justify-between gap-5 relative z-10">
-          <div className="flex items-start gap-4">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="bg-emerald-500/30 text-emerald-100 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider border border-white/10">
-                  {t("promo_badge")}
-                </span>
-                <span className="text-[10px] text-teal-100 font-bold bg-white/10 px-2 py-0.5 rounded">
-                  {t("promo_sub")}
-                </span>
-              </div>
-              <h3 className="font-extrabold text-white text-base md:text-lg tracking-tight mt-1.5 leading-tight font-sans">
-                {t("promo_title")}
-              </h3>
-              <p className="text-emerald-100/90 text-xs mt-1 leading-relaxed max-w-xl">
-                {t("promo_desc")}
-              </p>
-              <p className="text-emerald-200/70 text-[11px] mt-2 leading-relaxed max-w-xl flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                {t("promo_fee_note")}
-              </p>
-            </div>
-          </div>
-          
-          {/* Animated "hand to hand" badge — two hands with a bag passing
-              between them, in place of a growth number. Represents the
-              direct, no-middleman spirit of TamuBah rather than a stat */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center shrink-0 w-full md:w-auto min-w-[180px] flex flex-col items-center justify-center gap-2.5">
-            <div className="relative w-16 h-14 flex items-center justify-center shrink-0">
-              {/* Left hand, reaches in from the left as the bag arrives */}
-              <motion.div
-                className="absolute left-0"
-                animate={{ x: [0, 6, 0], rotate: [0, 6, 0] }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Hand className="w-6 h-6 text-emerald-200 -scale-x-100" />
-              </motion.div>
-
-              {/* Right hand, mirrors the motion, meeting in the middle */}
-              <motion.div
-                className="absolute right-0"
-                animate={{ x: [0, -6, 0], rotate: [0, -6, 0] }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Hand className="w-6 h-6 text-emerald-200" />
-              </motion.div>
-
-              {/* The woven bag, handed off between them on a small arc */}
-              <motion.div
-                className="absolute z-10"
-                animate={{
-                  x: [-13, 0, 13, 0, -13],
-                  y: [2, -5, 2, -5, 2],
-                  rotate: [-8, 0, 8, 0, -8]
-                }}
-                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Handbag className="w-5 h-5 text-amber-300" />
-              </motion.div>
-            </div>
-            <div className="text-[10px] font-black uppercase text-emerald-100 tracking-wide leading-tight">
-              {t("promo_onboarded")}
-            </div>
-            <div className="text-[10px] font-black uppercase text-emerald-200 bg-emerald-800/40 px-2 py-1 rounded-lg border border-emerald-500/20 inline-block">
-              {t("promo_no_charge")}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Minimalist Filter Bar: category icons + location */}
