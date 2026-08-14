@@ -26,9 +26,9 @@ const translations: Record<Language, Record<string, string>> = {
     promo_title: "Join the TamuBah Guild \u2014 Try It Free, Zero Risk",
     promo_desc: "Start your shop and get 30 days to try TamuBah completely free. No charge will be applied, and it's entirely up to you whether to continue afterward. No pressure, no obligations.",
     promo_fee_note: "After your free trial, staying on costs just RM20/month, a small fee that goes toward keeping the app running and maintained for everyone. No hidden charges.",
-    promo_onboarded: "The Guild Is Growing Every Day",
+    promo_onboarded: "Sabahan to Sabahan",
     slots_remaining: "slots remaining!",
-    promo_no_charge: "No Charge Applied",
+    promo_no_charge: "Hand in Hand, No Middleman",
     promo_sold_out: "Promotion Sold Out!",
 
     // Filter Controls
@@ -115,9 +115,9 @@ const translations: Record<Language, Record<string, string>> = {
     promo_title: "Sertai Gabungan TamuBah \u2014 Cuba Percuma, Tanpa Risiko",
     promo_desc: "Mulakan kedai anda dan dapatkan 30 hari untuk mencuba TamuBah sepenuhnya percuma. Tiada caj akan dikenakan, dan terpulang sepenuhnya kepada anda sama ada mahu teruskan selepas itu. Tiada tekanan, tiada sebarang komitmen.",
     promo_fee_note: "Selepas tempoh percubaan percuma, untuk terus menggunakan platform hanya RM20/bulan, yuran kecil untuk memastikan aplikasi ini terus beroperasi dan diselenggara untuk semua. Tiada caj tersembunyi.",
-    promo_onboarded: "Gabungan Semakin Berkembang Setiap Hari",
+    promo_onboarded: "Sabahan untuk Sabahan",
     slots_remaining: "slot tinggal!",
-    promo_no_charge: "Tiada Caj Dikenakan",
+    promo_no_charge: "Terus Dari Tangan, Tiada Orang Tengah",
     promo_sold_out: "Promosi Habis Dijual!",
 
     // Filter Controls

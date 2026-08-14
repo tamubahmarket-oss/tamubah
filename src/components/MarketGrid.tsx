@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
-  X, User, Users, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
+  X, User, Hand, Handbag, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
   Share2, Check, Store, Star
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -389,23 +389,41 @@ export default function MarketGrid({
             </div>
           </div>
           
-          {/* Animated "growing community" badge — pulsing rings instead of a
-              hard number, so the banner never looks stale or capped */}
+          {/* Animated "hand to hand" badge — two hands with a bag passing
+              between them, in place of a growth number. Represents the
+              direct, no-middleman spirit of TamuBah rather than a stat */}
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center shrink-0 w-full md:w-auto min-w-[180px] flex flex-col items-center justify-center gap-2.5">
-            <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
-              <motion.span
-                className="absolute inset-0 rounded-full bg-emerald-400/30"
-                animate={{ scale: [1, 1.7, 1], opacity: [0.7, 0, 0.7] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.span
-                className="absolute inset-0 rounded-full bg-emerald-400/20"
-                animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-              />
-              <div className="relative z-10 bg-emerald-500/40 border border-white/20 rounded-full w-11 h-11 flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
-              </div>
+            <div className="relative w-16 h-14 flex items-center justify-center shrink-0">
+              {/* Left hand, reaches in from the left as the bag arrives */}
+              <motion.div
+                className="absolute left-0"
+                animate={{ x: [0, 6, 0], rotate: [0, 6, 0] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Hand className="w-6 h-6 text-emerald-200 -scale-x-100" />
+              </motion.div>
+
+              {/* Right hand, mirrors the motion, meeting in the middle */}
+              <motion.div
+                className="absolute right-0"
+                animate={{ x: [0, -6, 0], rotate: [0, -6, 0] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Hand className="w-6 h-6 text-emerald-200" />
+              </motion.div>
+
+              {/* The woven bag, handed off between them on a small arc */}
+              <motion.div
+                className="absolute z-10"
+                animate={{
+                  x: [-13, 0, 13, 0, -13],
+                  y: [2, -5, 2, -5, 2],
+                  rotate: [-8, 0, 8, 0, -8]
+                }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Handbag className="w-5 h-5 text-amber-300" />
+              </motion.div>
             </div>
             <div className="text-[10px] font-black uppercase text-emerald-100 tracking-wide leading-tight">
               {t("promo_onboarded")}
