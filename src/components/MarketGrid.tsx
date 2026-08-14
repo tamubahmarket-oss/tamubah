@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
-  X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
+  X, User, Users, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
   Share2, Check, Store, Star
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -385,13 +385,26 @@ export default function MarketGrid({
             </div>
           </div>
           
-          {/* Evergreen growth stat — total sellers who've joined the Guild so far */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center shrink-0 w-full md:w-auto min-w-[180px]">
-            <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-200">
-              {t("promo_onboarded")}
+          {/* Animated "growing community" badge — pulsing rings instead of a
+              hard number, so the banner never looks stale or capped */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center shrink-0 w-full md:w-auto min-w-[180px] flex flex-col items-center justify-center gap-2.5">
+            <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
+              <motion.span
+                className="absolute inset-0 rounded-full bg-emerald-400/30"
+                animate={{ scale: [1, 1.7, 1], opacity: [0.7, 0, 0.7] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <motion.span
+                className="absolute inset-0 rounded-full bg-emerald-400/20"
+                animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+              />
+              <div className="relative z-10 bg-emerald-500/40 border border-white/20 rounded-full w-11 h-11 flex items-center justify-center">
+                <Users className="w-5 h-5 text-white" />
+              </div>
             </div>
-            <div className="text-3xl font-black text-white my-1 flex items-baseline justify-center gap-1.5">
-              <span>{loadingSellers ? "..." : sellerCount}</span>
+            <div className="text-[10px] font-black uppercase text-emerald-100 tracking-wide leading-tight">
+              {t("promo_onboarded")}
             </div>
             <div className="text-[10px] font-black uppercase text-emerald-200 bg-emerald-800/40 px-2 py-1 rounded-lg border border-emerald-500/20 inline-block">
               {t("promo_no_charge")}
