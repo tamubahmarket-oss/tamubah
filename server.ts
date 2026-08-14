@@ -2646,6 +2646,33 @@ async function startServer() {
   });
 
   // NEW: admins can now delete any product directly
+  // Admin pulls a product off the public Market page without deleting it.
+  // This only flips is_published to false, exactly like when a seller
+  // unpublishes their own listing, so the product stays fully intact in
+  // that seller's own shop page and dashboard, it just stops showing up
+  // in the general Market grid that all buyers browse.
+  app.patch("/api/admin/products/:id/unpublish", requireAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data: product } = await supabase.from("products").select("title").eq("id", id).maybeSingle();
+      if (!product) return res.status(404).json({ error: "Product not found." });
+
+      const { data: updated, error } = await supabase
+        .from("products")
+        .update({ is_published: false })
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      await addAdminLog("product_removed_from_market", `Admin removed "${product.title}" from the Market page. Still visible in the seller's own shop.`);
+      res.json({ success: true, product: productToApi(updated as ProductRow) });
+    } catch (err: any) {
+      console.error("PATCH /api/admin/products/:id/unpublish", err);
+      res.status(500).json({ error: "Failed to remove product from the market." });
+    }
+  });
+
   app.delete("/api/admin/products/:id", requireAdminAuth, async (req, res) => {
     try {
       const { id } = req.params;

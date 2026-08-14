@@ -5,7 +5,8 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Play, Server, FileText,
   User, MoreVertical, ShieldAlert,
-  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity
+  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity,
+  GripVertical, LayoutGrid, List, EyeOff
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -289,6 +290,7 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
     }
   };
   const [productFilter, setProductFilter] = useState<"all" | "pinned" | "regular">("all");
+  const [productViewMode, setProductViewMode] = useState<"list" | "grid">("list");
 
   // Admin Pagination states
   const [sellersPage, setSellersPage] = useState<number>(1);
@@ -740,25 +742,89 @@ spec:
     }
   };
 
+  // Renamed from a hard delete to a market removal. This only unpublishes
+  // the listing (same as a seller unpublishing their own product), so it
+  // disappears from the public Market page but the seller keeps it fully
+  // intact in their own shop dashboard and public shop page, and can
+  // republish it themselves later.
   const handleDeleteProduct = async (productId: string, title: string) => {
-    const confirmed = window.confirm(`Delete listing "${title}"? This action cannot be undone.`);
+    const confirmed = window.confirm(
+      `Remove "${title}" from the Market page? It will stay published in the seller's own shop, and they can republish it to the Market themselves at any time.`
+    );
     if (!confirmed) return;
     try {
       setActionLoading(`delete-product-${productId}`);
-      const res = await fetch(`/api/admin/products/${productId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/products/${productId}/unpublish`, { method: "PATCH" });
       if (res.ok) {
         await fetchAdminData();
         onRefreshMarket();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        window.alert(errorData.error || "Failed to delete listing.");
+        window.alert(errorData.error || "Failed to remove listing from the market.");
       }
     } catch (error) {
-      console.error("Error deleting product", error);
-      window.alert("Failed to delete listing.");
+      console.error("Error removing product from market", error);
+      window.alert("Failed to remove listing from the market.");
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // --- Drag-to-reorder for the Revisions & Products table ---
+  const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
+  const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
+  const [isSavingProductOrder, setIsSavingProductOrder] = useState(false);
+
+  const persistProductOrder = async (orderedIds: string[]) => {
+    try {
+      setIsSavingProductOrder(true);
+      const res = await fetch("/api/admin/products/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: orderedIds })
+      });
+      if (res.ok) {
+        onRefreshMarket();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to save the new order.");
+        await fetchAdminData();
+      }
+    } catch (error) {
+      console.error("Error saving product order", error);
+      window.alert("Failed to save the new order.");
+      await fetchAdminData();
+    } finally {
+      setIsSavingProductOrder(false);
+    }
+  };
+
+  const handleProductDrop = (targetProductId: string) => {
+    const sourceId = draggedProductId;
+    setDraggedProductId(null);
+    setDragOverProductId(null);
+    if (!sourceId || sourceId === targetProductId) return;
+
+    // Reorder within whatever's currently visible (respects search/pin filter);
+    // items outside the current filter keep their existing slot untouched.
+    const visibleIds = filteredProducts.map((p) => p.id);
+    const fromIndex = visibleIds.indexOf(sourceId);
+    const toIndex = visibleIds.indexOf(targetProductId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const reorderedVisibleIds = [...visibleIds];
+    reorderedVisibleIds.splice(fromIndex, 1);
+    reorderedVisibleIds.splice(toIndex, 0, sourceId);
+
+    const visibleSet = new Set(reorderedVisibleIds);
+    const byId = new Map(products.map((p) => [p.id, p]));
+    let cursor = 0;
+    const nextProducts = products.map((p) =>
+      visibleSet.has(p.id) ? byId.get(reorderedVisibleIds[cursor++])! : p
+    );
+
+    setProducts(nextProducts);
+    persistProductOrder(reorderedVisibleIds);
   };
 
   const handleReportStatus = async (reportId: string, status: "resolved" | "dismissed") => {
@@ -2064,14 +2130,143 @@ spec:
                       <option value="pinned">Pinned Revisions (Featured)</option>
                       <option value="regular">Regular Revisions Only</option>
                     </select>
+                    <div className="flex items-center border border-[#5f6368] rounded overflow-hidden shrink-0">
+                      <button
+                        type="button"
+                        title="List view"
+                        onClick={() => setProductViewMode("list")}
+                        className={`p-1.5 transition-colors ${
+                          productViewMode === "list" ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#202124] text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <List className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Grid view"
+                        onClick={() => setProductViewMode("grid")}
+                        className={`p-1.5 border-l border-[#5f6368] transition-colors ${
+                          productViewMode === "grid" ? "bg-[#8ab4f8]/20 text-[#8ab4f8]" : "bg-[#202124] text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Table list */}
+                <div className="px-4 py-2 bg-[#2a2b2f] border-b border-[#3c4043] flex items-center gap-1.5 text-[10px] text-slate-400 font-sans">
+                  <GripVertical className="w-3 h-3 shrink-0" />
+                  Drag {productViewMode === "grid" ? "cards" : "rows"} to reorder how listings appear on the market.
+                  {isSavingProductOrder && <span className="text-[#8ab4f8] font-bold ml-1">Saving order…</span>}
+                </div>
+
+                {productViewMode === "grid" ? (
+                  <div className="p-4">
+                    {filteredProducts.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 italic text-xs">
+                        No products match the selected filters.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {filteredProducts.map((product) => {
+                          const isProductPinned = (product as any).isPinned;
+                          const isDragging = draggedProductId === product.id;
+                          const isDragOver = dragOverProductId === product.id && draggedProductId !== product.id;
+                          return (
+                            <div
+                              key={product.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedProductId(product.id);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnter={() => {
+                                if (draggedProductId && draggedProductId !== product.id) {
+                                  setDragOverProductId(product.id);
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                handleProductDrop(product.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedProductId(null);
+                                setDragOverProductId(null);
+                              }}
+                              className={`bg-[#2a2b2f] border rounded-md overflow-hidden flex flex-col cursor-grab active:cursor-grabbing transition-all font-sans ${
+                                isDragging ? "opacity-40" : ""
+                              } ${isDragOver ? "border-[#8ab4f8] ring-1 ring-[#8ab4f8]" : "border-[#3c4043]"}`}
+                            >
+                              <div className="relative w-full aspect-square bg-[#202124] border-b border-[#3c4043] shrink-0">
+                                <img src={product.imageUrl} alt="" className="w-full h-full object-cover animate-fade-in" />
+                                <div className="absolute top-1.5 left-1.5 bg-black/60 rounded p-0.5">
+                                  <GripVertical className="w-3 h-3 text-white" />
+                                </div>
+                                {isProductPinned && (
+                                  <div className="absolute top-1.5 right-1.5 bg-[#fdd663]/90 rounded px-1 py-0.5 flex items-center gap-0.5">
+                                    <Star className="w-2.5 h-2.5 fill-[#202124] stroke-[#202124]" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-2.5 flex flex-col gap-1.5 flex-grow">
+                                <h4 className="font-bold text-[#e8eaed] text-[11px] line-clamp-1" title={product.title}>
+                                  {product.title}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 line-clamp-1 font-mono">{product.businessName}</span>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-bold text-[#e8eaed] text-[11px] font-mono">RM {product.price.toFixed(2)}</span>
+                                  {(product as any).isPublished ? (
+                                    <span className="bg-[#81c995]/10 text-[#81c995] text-[8px] font-bold px-1 py-0.2 rounded border border-[#81c995]/30 shrink-0">
+                                      LIVE
+                                    </span>
+                                  ) : (
+                                    <span className="bg-[#5f6368]/20 text-[#9aa0a6] text-[8px] font-bold px-1 py-0.2 rounded border border-[#5f6368]/30 shrink-0">
+                                      HIDDEN
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="bg-[#2d3033] text-[#bdc1c6] px-1.5 py-0.5 rounded text-[9px] font-bold border border-[#3c4043] inline-flex items-center gap-1 w-fit">
+                                  <CategoryIcon category={product.category} className="w-2.5 h-2.5 shrink-0" />
+                                  {product.category}
+                                </span>
+                                <div className="flex items-center gap-1 mt-auto pt-1.5">
+                                  <button
+                                    onClick={() => handleTogglePin(product.id, !!isProductPinned)}
+                                    disabled={actionLoading === `pin-${product.id}`}
+                                    className={`flex-1 px-1.5 py-1 rounded text-[9px] font-bold uppercase transition-all tracking-wide ${
+                                      isProductPinned
+                                        ? "bg-[#fdd663]/10 text-[#fdd663] border border-[#fdd663]/30 hover:bg-[#fdd663]/20"
+                                        : "bg-[#2d3033] text-slate-300 border border-[#3c4043] hover:bg-[#3c4043]"
+                                    } disabled:opacity-50 cursor-pointer`}
+                                  >
+                                    {actionLoading === `pin-${product.id}` ? "..." : isProductPinned ? "UNPIN" : "PIN"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product.id, product.title)}
+                                    disabled={actionLoading === `delete-product-${product.id}`}
+                                    title="Remove from Market page (keeps it published in the seller's own shop)"
+                                    className="p-1.5 rounded text-[#f28b82] border border-[#3c4043] hover:bg-[#f28b82]/10 hover:border-[#f28b82]/30 disabled:opacity-50 cursor-pointer transition-all shrink-0"
+                                  >
+                                    <EyeOff className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-[#3c4043] bg-[#202124] text-[#9aa0a6] font-bold uppercase tracking-wider text-[9px]">
+                        <th className="py-3 px-4 w-8" title="Drag to reorder">
+                          <GripVertical className="w-3.5 h-3.5 text-slate-500" />
+                        </th>
                         <th className="py-3 px-4">Local Product Artifact Details</th>
                         <th className="py-3 px-4">Local Creator (Service Namespace)</th>
                         <th className="py-3 px-4">Standard Pricing (MYR)</th>
@@ -2082,15 +2277,44 @@ spec:
                     <tbody className="divide-y divide-[#3c4043] text-[#bdc1c6]">
                       {filteredProducts.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-slate-400 italic">
+                          <td colSpan={6} className="py-12 text-center text-slate-400 italic">
                             No products match the selected filters.
                           </td>
                         </tr>
                       ) : (
                         filteredProducts.map((product) => {
                           const isProductPinned = (product as any).isPinned;
+                          const isDragging = draggedProductId === product.id;
+                          const isDragOver = dragOverProductId === product.id && draggedProductId !== product.id;
                           return (
-                            <tr key={product.id} className="hover:bg-[#2d3033] transition-colors font-mono text-[11px]">
+                            <tr
+                              key={product.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDraggedProductId(product.id);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragEnter={() => {
+                                if (draggedProductId && draggedProductId !== product.id) {
+                                  setDragOverProductId(product.id);
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                handleProductDrop(product.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedProductId(null);
+                                setDragOverProductId(null);
+                              }}
+                              className={`hover:bg-[#2d3033] transition-colors font-mono text-[11px] cursor-grab active:cursor-grabbing ${
+                                isDragging ? "opacity-40" : ""
+                              } ${isDragOver ? "border-t-2 border-t-[#8ab4f8]" : ""}`}
+                            >
+                              <td className="py-4 px-4 text-slate-500">
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </td>
                               <td className="py-4 px-4 font-sans">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded bg-[#2a2b2f] border border-[#3c4043] overflow-hidden shrink-0">
@@ -2155,10 +2379,10 @@ spec:
                                   <button
                                     onClick={() => handleDeleteProduct(product.id, product.title)}
                                     disabled={actionLoading === `delete-product-${product.id}`}
-                                    title="Delete this listing"
+                                    title="Remove from Market page (keeps it published in the seller's own shop)"
                                     className="p-1.5 rounded text-[#f28b82] border border-[#3c4043] hover:bg-[#f28b82]/10 hover:border-[#f28b82]/30 disabled:opacity-50 cursor-pointer transition-all"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <EyeOff className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </td>
@@ -2169,6 +2393,7 @@ spec:
                     </tbody>
                   </table>
                 </div>
+                )}
 
                 {/* Revisions / Products Pagination Controls */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 bg-[#2a2b2f] border border-[#3c4043] rounded p-4 text-[#e8eaed] select-none">
