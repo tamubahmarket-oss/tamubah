@@ -584,7 +584,7 @@ spec:
     }
   };
 
-  const handleUpdateVerificationTier = async (sellerId: string, tier: "None" | "Bronze" | "Silver" | "Gold") => {
+  const handleUpdateVerificationTier = async (sellerId: string, tier: "None" | "Licensed" | "Bronze" | "Silver" | "Gold") => {
     try {
       setActionLoading(`tier-${sellerId}`);
       const res = await fetch(`/api/admin/sellers/${sellerId}/verify`, {
@@ -1913,6 +1913,10 @@ spec:
                                 <span className="inline-flex items-center gap-1 text-[#e18e56] bg-[#e18e56]/10 px-2 py-0.5 rounded border border-[#e18e56]/30 text-[10px] font-bold">
                                   ● Bronze Badge
                                 </span>
+                              ) : seller.verificationTier === "Licensed" ? (
+                                <span className="inline-flex items-center gap-1 text-[#81c995] bg-[#81c995]/10 px-2 py-0.5 rounded border border-[#81c995]/30 text-[10px] font-bold">
+                                  ✓ Licensed
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-400/10 px-2 py-0.5 rounded border border-slate-500/20 text-[10px]">
                                   None / Standard
@@ -2011,6 +2015,7 @@ spec:
                                   className="border border-[#5f6368] text-[10px] rounded bg-[#202124] p-1.5 focus:outline-none focus:border-[#8ab4f8] font-bold text-[#e8eaed] h-8 cursor-pointer"
                                 >
                                   <option value="None">None (Standard)</option>
+                                  <option value="Licensed">Licensed / Verified Business</option>
                                   <option value="Bronze">Bronze Tier</option>
                                   <option value="Silver">Silver Tier</option>
                                   <option value="Gold">Gold Tier</option>

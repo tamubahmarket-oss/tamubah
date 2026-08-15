@@ -13,7 +13,7 @@ export interface Seller {
   dream?: string;
   isVerified?: boolean; // deprecated or used alongside
   isApproved?: boolean; // status that allows page access
-  verificationTier?: "None" | "Bronze" | "Silver" | "Gold"; // 3-level verified badge
+  verificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold"; // Licensed = simple pill; Bronze/Silver/Gold = big 3D medal
   contactCount?: number;
   averageRating?: number;
   reviewCount?: number;
@@ -51,7 +51,7 @@ export interface Product {
   sellerDream?: string;
   sellerIsVerified?: boolean;
   sellerIsApproved?: boolean;
-  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerVerificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold";
   ssmNumber?: string;
   reportCount?: number;
   sellerAverageRating?: number;
@@ -104,7 +104,7 @@ export interface CommunityTopic {
   hasVoted: boolean;
   businessName?: string;
   sellerLogoUrl?: string;
-  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerVerificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold";
   sellerIsOfficial?: boolean;
 }
 
@@ -116,7 +116,7 @@ export interface CommunityReply {
   createdAt: string;
   businessName?: string;
   sellerLogoUrl?: string;
-  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerVerificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold";
   sellerIsOfficial?: boolean;
 }
 
@@ -131,7 +131,7 @@ export interface Story {
   // Enriched fields (present on the public feed)
   businessName?: string;
   sellerLogoUrl?: string;
-  sellerVerificationTier?: "None" | "Bronze" | "Silver" | "Gold";
+  sellerVerificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold";
   sellerLocation?: string;
   sellerPhoneNumber?: string;
 }

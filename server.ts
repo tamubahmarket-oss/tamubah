@@ -1189,9 +1189,12 @@ async function startServer() {
       if (address) update.address = address;
       if (phoneNumber) update.phone_number = phoneNumber;
       if (location) update.location = location;
+      // Sellers can still record their own SSM/trading license number here
+      // for the admin team's reference, but it NEVER auto-verifies them.
+      // Verification (the "Licensed" tier and the Bronze/Silver/Gold badges)
+      // can only be granted by an admin, via POST /api/admin/sellers/:id/verify.
       if (ssmNumber !== undefined) {
         update.ssm_number = ssmNumber;
-        update.is_verified = !!ssmNumber;
       }
       if (ownerName) update.owner_name = ownerName;
 
@@ -2452,9 +2455,13 @@ async function startServer() {
         update.verification_tier = verificationTier;
         update.is_verified = verificationTier !== "None";
       } else if (isVerified !== undefined) {
+        // Legacy path, kept for compatibility: the admin UI now always sends
+        // verificationTier directly (see branch above), but if isVerified is
+        // ever sent alone, default a fresh verification to "Licensed" rather
+        // than jumping straight to a Bronze medal tier.
         update.is_verified = !!isVerified;
         if (isVerified && (!seller.verification_tier || seller.verification_tier === "None")) {
-          update.verification_tier = "Bronze";
+          update.verification_tier = "Licensed";
         } else if (!isVerified) {
           update.verification_tier = "None";
         }

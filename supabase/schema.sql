@@ -34,7 +34,7 @@ create table if not exists sellers (
   is_verified           boolean not null default false,
   is_approved           boolean not null default false,
   verification_tier     text not null default 'None'
-                          check (verification_tier in ('None','Bronze','Silver','Gold')),
+                          check (verification_tier in ('None','Licensed','Bronze','Silver','Gold')),
   show_phone_publicly   boolean not null default true,
   contact_count         integer not null default 0,
   -- Plan tracking for the community-empowerment rollout: the first 100
@@ -66,6 +66,14 @@ alter table sellers add column if not exists latest_update text default '';
 alter table sellers add column if not exists latest_update_at timestamptz;
 alter table sellers add column if not exists is_official boolean not null default false;
 
+-- Safe to re-run: widens the verification_tier check constraint to allow the
+-- new 'Licensed' value (a plain "verified business" badge, distinct from the
+-- Bronze/Silver/Gold medal tiers). Existing databases created before this
+-- had a narrower constraint that would reject 'Licensed' without this.
+alter table sellers drop constraint if exists sellers_verification_tier_check;
+alter table sellers add constraint sellers_verification_tier_check
+  check (verification_tier in ('None','Licensed','Bronze','Silver','Gold'));
+
 create index if not exists idx_sellers_location on sellers(location);
 create index if not exists idx_sellers_category on sellers(category);
 create index if not exists idx_sellers_is_approved on sellers(is_approved);
@@ -88,6 +96,10 @@ create table if not exists products (
   -- unpublish their current live product, or an admin grants an exception
   -- via the publish_requests table below.
   is_published  boolean not null default true,
+  -- Manual admin-controlled display order within the (pinned / regular)
+  -- group, set by dragging rows in the admin "Revisions & Products" tab.
+  -- Lower numbers show first; ties fall back to created_at desc.
+  sort_order    integer not null default 0,
   seller_id     text not null references sellers(id) on delete cascade,
   created_at    timestamptz not null default now()
 );
@@ -97,10 +109,14 @@ create table if not exists products (
 -- live listings stay visible after the upgrade.
 alter table products add column if not exists is_published boolean not null default true;
 
+-- Safe to re-run: adds the drag-reorder column to an existing database.
+alter table products add column if not exists sort_order integer not null default 0;
+
 create index if not exists idx_products_seller_id on products(seller_id);
 create index if not exists idx_products_category on products(category);
 create index if not exists idx_products_created_at on products(created_at desc);
 create index if not exists idx_products_is_published on products(is_published);
+create index if not exists idx_products_sort_order on products(sort_order);
 
 -- ---------------------------------------------------------------------------
 -- publish_requests — a seller who already has 1 published product but wants

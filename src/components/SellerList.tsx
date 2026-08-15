@@ -11,6 +11,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import { LocationWatermark } from "../lib/locationIcons";
 import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
 import { useCategories } from "../lib/categoryStore";
+import VerificationMedal from "./VerificationMedal";
 
 interface SellerWithStats extends Seller {
   productCount: number;
@@ -556,10 +557,11 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                         className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-md z-10"
                         style={{
                           background:
-                            seller.verificationTier === "Gold" ? "#d4af37" :
-                            seller.verificationTier === "Silver" ? "#c0c0c0" : "#cd7f32",
+                            seller.verificationTier === "Gold" ? "#0f9d58" :
+                            seller.verificationTier === "Silver" ? "#c0c0c0" :
+                            seller.verificationTier === "Bronze" ? "#cd7f32" : "#059669",
                         }}
-                        title={`${seller.verificationTier} Verified Seller`}
+                        title={seller.verificationTier === "Licensed" ? "Licensed Verified Business" : `${seller.verificationTier} Verified Seller`}
                       >
                         <BadgeCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
                       </span>
@@ -717,14 +719,25 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
               onClick={(e) => e.stopPropagation()}
             >
               {/* Graphic Banner Header */}
-              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 p-6 text-white relative shrink-0">
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 p-6 text-white relative shrink-0 overflow-hidden">
                 <button
                   onClick={handleCloseSellerModal}
-                  className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-1.5 transition-colors cursor-pointer"
+                  className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-1.5 transition-colors cursor-pointer z-10"
                   title="Close Profile"
                 >
                   <X className="w-4 h-4" />
                 </button>
+
+                {/* Big 3D medal for Bronze/Silver/Gold tiers — floats prominently
+                    in the banner so it's immediately noticeable, separate from
+                    the compact text pill used for every other status */}
+                {(activeSellerModal.verificationTier === "Gold" ||
+                  activeSellerModal.verificationTier === "Silver" ||
+                  activeSellerModal.verificationTier === "Bronze") && (
+                  <div className="hidden sm:block absolute right-6 top-1/2 -translate-y-[42%] drop-shadow-xl">
+                    <VerificationMedal tier={activeSellerModal.verificationTier as "Gold" | "Silver" | "Bronze"} size={92} />
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4.5">
                   <div className="w-18 h-18 rounded-2xl overflow-hidden border-2 border-emerald-500 bg-white/10 shrink-0 flex items-center justify-center relative">
@@ -746,8 +759,8 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                         {activeSellerModal.category}
                       </span>
                       {activeSellerModal.verificationTier === "Gold" ? (
-                        <span className="flex items-center gap-1 text-[10px] font-extrabold bg-amber-950/40 px-2.5 py-0.5 rounded-md border border-[#d4af37]/30" style={{ color: "#d4af37" }}>
-                          <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#d4af37" }} />
+                        <span className="flex items-center gap-1 text-[10px] font-extrabold bg-emerald-950/40 px-2.5 py-0.5 rounded-md border border-[#0f9d58]/30" style={{ color: "#3ddc84" }}>
+                          <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#3ddc84" }} />
                           {language === "EN" ? "Gold Verified Seller" : "Penjual Disahkan Emas"}
                         </span>
                       ) : activeSellerModal.verificationTier === "Silver" ? (
@@ -760,7 +773,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                           <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#cd7f32" }} />
                           {language === "EN" ? "Bronze Verified Seller" : "Penjual Disahkan Gangsa"}
                         </span>
-                      ) : activeSellerModal.isVerified || !!activeSellerModal.ssmNumber ? (
+                      ) : activeSellerModal.verificationTier === "Licensed" ? (
                         <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-bold bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-500/30">
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                           {language === "EN" ? "Licensed / SSM Verified Business" : "Perniagaan Berlesen / SSM Disahkan"}

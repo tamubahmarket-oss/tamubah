@@ -529,11 +529,13 @@ export default function MarketGrid({
                       <span className="font-bold text-slate-700 group-hover/btn:text-emerald-700 transition-colors line-clamp-1 text-[9px] flex items-center gap-0.5 min-w-0">
                         {p.businessName}
                         {p.sellerVerificationTier === "Gold" ? (
-                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#d4af37" }} title="Gold Licensed Seller" />
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#0f9d58" }} title="Gold Verified Seller" />
                         ) : p.sellerVerificationTier === "Silver" ? (
-                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#c0c0c0" }} title="Silver Licensed Seller" />
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#c0c0c0" }} title="Silver Verified Seller" />
                         ) : p.sellerVerificationTier === "Bronze" ? (
-                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#cd7f32" }} title="Bronze Licensed Seller" />
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#cd7f32" }} title="Bronze Verified Seller" />
+                        ) : p.sellerVerificationTier === "Licensed" ? (
+                          <ShieldCheck className="w-2.5 h-2.5 shrink-0" style={{ color: "#059669" }} title="Licensed Verified Business" />
                         ) : null}
                       </span>
                     </button>
@@ -883,11 +885,13 @@ export default function MarketGrid({
                         <h4 className="font-extrabold text-slate-900 text-xs truncate flex items-center gap-1">
                           {sharedProduct.businessName}
                           {sharedProduct.sellerVerificationTier === "Gold" ? (
-                            <ShieldCheck className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                            <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: "#0f9d58" }} />
                           ) : sharedProduct.sellerVerificationTier === "Silver" ? (
                             <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           ) : sharedProduct.sellerVerificationTier === "Bronze" ? (
                             <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          ) : sharedProduct.sellerVerificationTier === "Licensed" ? (
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           ) : null}
                         </h4>
                         <p className="text-[10px] text-slate-500 font-medium truncate">
