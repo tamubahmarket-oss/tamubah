@@ -551,17 +551,23 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                       </div>
                     </div>
 
-                    {/* Verification badge, overlaid bottom-right of the circle */}
-                    {seller.verificationTier && seller.verificationTier !== "None" ? (
+                    {/* Verification badge, overlaid bottom-right of the circle.
+                        Bronze/Silver/Gold use the real 3D medal (compact "seal"
+                        variant, no ribbon tails, so it fits this tight corner).
+                        Licensed keeps the plain check-circle, matching the
+                        simple pill style used for it everywhere else on site. */}
+                    {seller.verificationTier === "Gold" || seller.verificationTier === "Silver" || seller.verificationTier === "Bronze" ? (
+                      <span
+                        className="absolute -bottom-1 -right-1 z-10 drop-shadow-md"
+                        title={`${seller.verificationTier} Verified Seller`}
+                      >
+                        <VerificationMedal tier={seller.verificationTier} variant="seal" size={26} />
+                      </span>
+                    ) : seller.verificationTier === "Licensed" ? (
                       <span
                         className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-md z-10"
-                        style={{
-                          background:
-                            seller.verificationTier === "Gold" ? "#0f9d58" :
-                            seller.verificationTier === "Silver" ? "#c0c0c0" :
-                            seller.verificationTier === "Bronze" ? "#cd7f32" : "#059669",
-                        }}
-                        title={seller.verificationTier === "Licensed" ? "Licensed Verified Business" : `${seller.verificationTier} Verified Seller`}
+                        style={{ background: "#059669" }}
+                        title="Licensed Verified Business"
                       >
                         <BadgeCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
                       </span>

@@ -1,9 +1,14 @@
 import React, { useId } from "react";
+import bagWatermark from "../assets/images/tamubah-bag-watermark.png";
 
 interface VerificationMedalProps {
   tier: "Bronze" | "Silver" | "Gold";
-  size?: number; // pixel width; height scales proportionally (medal + ribbon tails)
+  size?: number; // pixel width; height scales proportionally
   className?: string;
+  /** "full" = medal + ribbon tails, for spacious spots like the shop modal.
+   *  "seal" = just the round medallion, no tails, for tight spots like a
+   *  small avatar-corner badge on a dense grid card. */
+  variant?: "full" | "seal";
 }
 
 // Tier color ramps — each is a 3-stop gradient (highlight -> mid -> shadow)
@@ -34,16 +39,22 @@ function buildScallopedSealPath(cx: number, cy: number, outerR: number, innerR: 
   return d + "Z";
 }
 
-export default function VerificationMedal({ tier, size = 88, className = "" }: VerificationMedalProps) {
+export default function VerificationMedal({ tier, size = 88, className = "", variant = "full" }: VerificationMedalProps) {
   const uid = useId().replace(/[:]/g, "");
   const colors = TIER_COLORS[tier];
   const sealPath = buildScallopedSealPath(100, 96, 74, 63, 20);
+  const isSealOnly = variant === "seal";
+  // "seal" crops tight around just the medallion (roughly x:18-182, y:14-178)
+  // so there's no empty space where the ribbon tails would have been.
+  const viewBox = isSealOnly ? "18 14 164 164" : "0 0 200 240";
+  const aspectH = isSealOnly ? 164 : 240;
+  const aspectW = isSealOnly ? 164 : 200;
 
   return (
     <svg
-      viewBox="0 0 200 240"
+      viewBox={viewBox}
       width={size}
-      height={(size * 240) / 200}
+      height={(size * aspectH) / aspectW}
       className={className}
       role="img"
       aria-label={`${tier} — ${colors.text}`}
@@ -70,20 +81,27 @@ export default function VerificationMedal({ tier, size = 88, className = "" }: V
         <filter id={`drop-${uid}`} x="-40%" y="-40%" width="180%" height="180%">
           <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000000" floodOpacity="0.35" />
         </filter>
+        <clipPath id={`face-clip-${uid}`}>
+          <circle cx="100" cy="96" r="54" />
+        </clipPath>
       </defs>
 
       <g filter={`url(#drop-${uid})`}>
-        {/* Ribbon tails, drawn first so the seal overlaps their top edge */}
-        <path
-          d="M76,150 L76,228 L100,210 L92,150 Z"
-          fill={`url(#ribbon-${uid})`}
-          transform="rotate(-8 88 190)"
-        />
-        <path
-          d="M124,150 L124,228 L100,210 L108,150 Z"
-          fill={`url(#ribbon-${uid})`}
-          transform="rotate(8 112 190)"
-        />
+        {/* Ribbon tails, skipped entirely in "seal" variant */}
+        {!isSealOnly && (
+          <>
+            <path
+              d="M76,150 L76,228 L100,210 L92,150 Z"
+              fill={`url(#ribbon-${uid})`}
+              transform="rotate(-8 88 190)"
+            />
+            <path
+              d="M124,150 L124,228 L100,210 L108,150 Z"
+              fill={`url(#ribbon-${uid})`}
+              transform="rotate(8 112 190)"
+            />
+          </>
+        )}
 
         {/* Outer scalloped seal (the coin itself) */}
         <path d={sealPath} fill={`url(#rim-${uid})`} stroke={colors.dark} strokeWidth="1" />
@@ -93,6 +111,22 @@ export default function VerificationMedal({ tier, size = 88, className = "" }: V
 
         {/* Navy face */}
         <circle cx="100" cy="96" r="54" fill={`url(#face-${uid})`} stroke={colors.light} strokeWidth="2" />
+
+        {/* TamuBah bag mark, faint watermark sitting on the navy face,
+            behind the wordmark and the glossy highlight. Both href and
+            xlinkHref are set since older WebKit-based renderers only
+            recognize the xlink: form. */}
+        <image
+          href={bagWatermark}
+          xlinkHref={bagWatermark}
+          x="66"
+          y="62"
+          width="68"
+          height="61"
+          opacity="0.3"
+          clipPath={`url(#face-clip-${uid})`}
+          preserveAspectRatio="xMidYMid meet"
+        />
 
         {/* Glossy highlight, upper-left, for the "3D dome" effect */}
         <circle cx="100" cy="96" r="54" fill={`url(#shine-${uid})`} />
