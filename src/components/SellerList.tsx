@@ -285,8 +285,8 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
     return matchesSearch && matchesLocation && matchesCategory && isApproved && matchesVerified;
   });
 
-  // Client-side pagination — 50 sellers per page, same pattern as the Market page
-  const SELLERS_PER_PAGE = 50;
+  // Client-side pagination — 100 sellers per page, same pattern as the Market page
+  const SELLERS_PER_PAGE = 100;
   const [sellerPage, setSellerPage] = useState<number>(1);
 
   useEffect(() => {

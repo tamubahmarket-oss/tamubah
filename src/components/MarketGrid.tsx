@@ -137,7 +137,7 @@ export default function MarketGrid({
   const [page, setPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [totalCount, setTotalCount] = useState<number>(0);
-  const limit = 50;
+  const limit = 100;
 
   // Debounced search query to prevent excessive database hits on every keystroke
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);

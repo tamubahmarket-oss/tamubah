@@ -48,7 +48,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-950 max-w-4xl mx-auto leading-tight">
             {isEN ? (
               <>
-                Empowering the Dreams of <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Sabahan Usahawan</span>
+                Empowering the Dreams of <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Sabahan Entrepreneurs</span>
               </>
             ) : (
               <>

@@ -1070,7 +1070,7 @@ async function startServer() {
       const filterType = (req.query.filter as string) || "all"; // 'all' | 'verified' | 'unverified'
       const showAll = req.query.showAll === "true";
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || 100;
 
       let query = supabase.from("sellers").select("*", { count: "exact" });
 
@@ -1407,7 +1407,7 @@ async function startServer() {
       const location = (req.query.location as string) || "All";
       const showAll = req.query.showAll === "true";
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || 100;
 
       const [{ data: productRows, error: prodErr }, { data: sellerRows, error: sellerErr }, { data: reportRows }, { data: reviewRows }] =
         await Promise.all([
