@@ -5,6 +5,7 @@ import {
   Mail, Globe
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
+import commissionComparisonPoster from "../assets/images/tamubah-commission-comparison-poster.webp";
 
 interface HomePageProps {
   onLaunchMarket: () => void;
@@ -97,10 +98,47 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
             </div>
             <div className="bg-white/60 backdrop-blur-xs p-4 rounded-2xl border border-slate-100 shadow-xs">
               <span className="text-emerald-600 font-bold text-xs uppercase block tracking-wider mb-1">{isEN ? "Free Trials & Plans" : "Percubaan & Pelan"}</span>
-              <p className="text-slate-500 text-xs">{isEN ? "1st 100 sellers get 1 year free! 101+ get 1 month trial, then RM20/month." : "100 usahawan pertama percuma 1 tahun! Seterusnya cuba percuma 1 bulan, kemudian RM20/bulan."}</p>
+              <p className="text-slate-500 text-xs">{isEN ? "Get 1 month free trial, then just RM20/month membership. No hidden fees." : "Dapatkan percubaan percuma 1 bulan, kemudian yuran keahlian RM20/bulan sahaja. Tiada caj tersembunyi."}</p>
             </div>
           </div>
         </div>
+      </section>
+
+      {/* 1.5 WHY TAMUBAH — COMMISSION COMPARISON POSTER */}
+      <section className="max-w-5xl mx-auto px-4 py-12 md:py-16">
+        <div className="text-center mb-8 space-y-2">
+          <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest block">
+            {isEN ? "THE NUMBERS DON'T LIE" : "ANGKA TIDAK PERNAH BOHONG"}
+          </span>
+          <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+            {isEN ? "Sell Smarter With TamuBah" : "Berniaga Lebih Bijak Bersama TamuBah"}
+          </h2>
+        </div>
+
+        <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-100">
+          <img
+            src={commissionComparisonPoster}
+            alt={
+              isEN
+                ? "Comparison of TamuBah's flat RM20/month fee against 15–30% commission platforms, showing sellers keep 100% of every sale"
+                : "Perbandingan yuran rata TamuBah RM20/bulan berbanding platform komisyen 15–30%, menunjukkan penjual menyimpan 100% setiap jualan"
+            }
+            className="w-full h-auto block"
+            loading="lazy"
+          />
+        </div>
+
+        <p className="text-slate-500 text-sm text-center leading-relaxed max-w-3xl mx-auto mt-6">
+          {isEN ? (
+            <>
+              Other platforms take 15% to 30% off every single sale, quietly shrinking your profit no matter how well you sell. TamuBah charges one flat RM20 a month instead, so on 100 orders of a RM10 item, you'd keep <strong className="text-emerald-700">RM980</strong> here versus only <strong className="text-slate-700">RM700–RM850</strong> on a typical commission app. The more you sell, the more that difference works in your favor, not the platform's.
+            </>
+          ) : (
+            <>
+              Platform lain mengambil 15% hingga 30% daripada setiap jualan anda, secara senyap-senyap mengecilkan keuntungan anda tidak kira sehebat mana jualan anda. TamuBah hanya mengenakan yuran rata RM20 sebulan, jadi bagi 100 pesanan produk RM10, anda menyimpan <strong className="text-emerald-700">RM980</strong> di sini berbanding hanya <strong className="text-slate-700">RM700–RM850</strong> di platform komisyen biasa. Semakin banyak anda berjaya jual, semakin besar perbezaan itu memihak kepada anda, bukan kepada platform.
+            </>
+          )}
+        </p>
       </section>
 
       {/* 2. VISION, MISSION & ENTREPRENEUR DREAM CHERISHING */}
@@ -260,7 +298,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
         </div>
       </section>
 
-      {/* 4. OFFICIAL LAUNCH NEXT YEAR & SHARING COMMUNITY CHALLENGE */}
+      {/* 4. OFFICIAL LAUNCH, MOBILE APP ANNOUNCEMENT & SHARING COMMUNITY CHALLENGE */}
       <section className="max-w-4xl mx-auto px-4 py-16 md:py-24 text-center">
         <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-3xl p-8 md:p-12 text-white shadow-xl relative overflow-hidden">
           
@@ -276,19 +314,35 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
 
             <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-tight">
               {isEN ? (
-                "Preparing For Our Official Launch Next Year"
+                "Preparing For Our Official Launch"
               ) : (
-                "Bersedia Untuk Pelancaran Rasmi Tahun Hadapan"
+                "Bersedia Untuk Pelancaran Rasmi"
               )}
             </h2>
 
             <p className="text-emerald-100/90 text-sm md:text-base leading-relaxed">
               {isEN ? (
-                "TAMU BAH is currently in its soft pre-launch phase! We are scheduled for our highly anticipated official public launch by next year. We invite every Sabahan to support, protect, and build this app together."
+                "TAMU BAH is currently in its soft pre-launch phase! We invite every Sabahan to support, protect, and build this app together as we work toward our highly anticipated official public launch."
               ) : (
-                "TAMU BAH kini berada dalam fasa pra-pelancaran! Kami dijadualkan untuk pelancaran rasmi secara besar-besaran pada tahun hadapan. Kami menjemput setiap rakyat Sabah untuk menyokong, memelihara, dan membina aplikasi ini bersama."
+                "TAMU BAH kini berada dalam fasa pra-pelancaran! Kami menjemput setiap rakyat Sabah untuk menyokong, memelihara, dan membina aplikasi ini bersama sementara kami menuju ke arah pelancaran rasmi secara besar-besaran."
               )}
             </p>
+
+            <div className="bg-white/10 p-5 rounded-2xl border border-white/15 text-left flex gap-4 items-start">
+              <Smartphone className="w-8 h-8 text-emerald-200 shrink-0 mt-1" />
+              <div>
+                <h4 className="font-extrabold text-sm text-white mb-1">
+                  {isEN ? "Coming to Your Phone" : "Akan Hadir Ke Telefon Anda"}
+                </h4>
+                <p className="text-emerald-100/80 text-xs leading-relaxed">
+                  {isEN ? (
+                    "At our official launch, TamuBah will also be available as a mobile app, downloadable directly from the Play Store (Android) and App Store (iOS), making it even easier to buy from and sell alongside fellow Sabahans."
+                  ) : (
+                    "Semasa pelancaran rasmi, TamuBah turut akan tersedia sebagai aplikasi mudah alih, boleh dimuat turun terus dari Play Store (Android) dan App Store (iOS), menjadikannya lebih mudah untuk membeli dan berniaga bersama sesama rakyat Sabah."
+                  )}
+                </p>
+              </div>
+            </div>
 
             <div className="bg-white/10 p-5 rounded-2xl border border-white/15 text-left flex gap-4 items-start">
               <Users className="w-8 h-8 text-emerald-200 shrink-0 mt-1" />
