@@ -307,6 +307,26 @@ create index if not exists idx_analytics_events_created_at on analytics_events(c
 create index if not exists idx_analytics_events_seller_id on analytics_events(seller_id);
 
 -- ---------------------------------------------------------------------------
+-- bossku_queries — every message sent to the "Bossku" AI assistant widget on
+-- the Home page, plus what it understood/matched, powering the Admin
+-- "Bossku AI" analytics tab (what visitors are actually searching for).
+-- ---------------------------------------------------------------------------
+create table if not exists bossku_queries (
+  id                text primary key,
+  session_id        text not null,
+  message            text not null,
+  language           text not null default 'EN' check (language in ('EN', 'BM')),
+  detected_category  text,
+  detected_location  text,
+  keywords           text[] not null default '{}',
+  result_count       integer not null default 0,
+  created_at         timestamptz not null default now()
+);
+
+create index if not exists idx_bossku_queries_created_at on bossku_queries(created_at desc);
+create index if not exists idx_bossku_queries_session_id on bossku_queries(session_id);
+
+-- ---------------------------------------------------------------------------
 -- Lock everything down: enable RLS, add zero policies.
 -- The server always connects with the service role key, which bypasses RLS,
 -- so these tables stay fully usable by your API while being unreachable by
@@ -327,3 +347,4 @@ alter table community_topics  enable row level security;
 alter table community_replies enable row level security;
 alter table community_votes   enable row level security;
 alter table analytics_events  enable row level security;
+alter table bossku_queries    enable row level security;

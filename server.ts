@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServer as createViteServer } from "vite";
 import { createRequire } from "module";
+import { SABAH_LOCATIONS, BUSINESS_CATEGORIES } from "./types";
 
 // ============================================================================
 // WEBSOCKET POLYFILL — @supabase/realtime-js requires a native WebSocket
@@ -635,6 +636,265 @@ async function logAnalyticsEvent(
   }
 }
 
+// Records one message sent to the "Bossku" AI assistant widget (Home page
+// only), plus what it understood from it, for the Admin "Bossku AI" tab.
+// Never throws into the caller — analytics are a nice-to-have.
+async function logBossKuQuery(entry: {
+  sessionId: string;
+  message: string;
+  language: "EN" | "BM";
+  detectedCategory?: string | null;
+  detectedLocation?: string | null;
+  keywords: string[];
+  resultCount: number;
+}) {
+  try {
+    await supabase.from("bossku_queries").insert({
+      id: "bkq_" + Math.random().toString(36).substr(2, 10),
+      session_id: entry.sessionId,
+      message: entry.message.slice(0, 500),
+      language: entry.language,
+      detected_category: entry.detectedCategory || null,
+      detected_location: entry.detectedLocation || null,
+      keywords: entry.keywords.slice(0, 10),
+      result_count: entry.resultCount,
+    });
+  } catch (err) {
+    console.error("logBossKuQuery failed", err);
+  }
+}
+
+// ============================================================================
+// BOSSKU — the Home page AI shopping assistant.
+// A dependency-free, deterministic matcher (no external AI API key required):
+// it reads the visitor's message for a district, a category, a price ceiling
+// and a "cheapest first" hint, then searches live products/sellers straight
+// from Supabase and replies in a friendly bilingual Sabahan voice with a
+// short comparison of the best matches (price + rating).
+// ============================================================================
+const STOPWORDS = new Set([
+  "saya", "sy", "nak", "mau", "mahu", "cari", "carikan", "boleh", "tolong",
+  "ada", "kah", "ka", "bah", "ne", "lah", "la", "di", "dekat", "area",
+  "the", "a", "an", "for", "please", "want", "need", "looking", "find",
+  "me", "i", "im", "i'm", "to", "in", "at", "is", "there", "any", "some",
+  "with", "and", "or", "of",
+]);
+
+const CHEAP_WORDS = ["murah", "cheap", "cheapest", "paling murah", "budget", "affordable"];
+const SELLER_INTENT_WORDS = ["kedai", "penjual", "seller", "shop", "store", "peniaga", "tukang"];
+
+function detectBossKuLocation(lower: string): string | null {
+  for (const loc of SABAH_LOCATIONS) {
+    if (lower.includes(loc.toLowerCase())) return loc;
+  }
+  return null;
+}
+
+function detectBossKuCategory(lower: string): string | null {
+  const map: Record<string, string> = {
+    "food&tamu": "Food&Tamu",
+    "makan": "Food&Tamu",
+    "makanan": "Food&Tamu",
+    "food": "Food&Tamu",
+    "kuih": "Food&Tamu",
+    "minuman": "Food&Tamu",
+    "drink": "Food&Tamu",
+    "bundle&fashion": "Bundle&Fashion",
+    "baju": "Bundle&Fashion",
+    "fashion": "Bundle&Fashion",
+    "pakaian": "Bundle&Fashion",
+    "bundle": "Bundle&Fashion",
+    "gadgets&electronics": "Gadgets&Electronics",
+    "gadget": "Gadgets&Electronics",
+    "phone": "Gadgets&Electronics",
+    "telefon": "Gadgets&Electronics",
+    "electronic": "Gadgets&Electronics",
+    "elektronik": "Gadgets&Electronics",
+    "cars&bikes": "Cars&Bikes",
+    "kereta": "Cars&Bikes",
+    "motor": "Cars&Bikes",
+    "basikal": "Cars&Bikes",
+    "bike": "Cars&Bikes",
+    "car": "Cars&Bikes",
+    "homes&living": "Homes&Living",
+    "rumah": "Homes&Living",
+    "perabot": "Homes&Living",
+    "furniture": "Homes&Living",
+    "home": "Homes&Living",
+    "services&runners": "Services&Runners",
+    "runner": "Services&Runners",
+    "servis": "Services&Runners",
+    "service": "Services&Runners",
+    "hantar": "Services&Runners",
+    "delivery": "Services&Runners",
+  };
+  for (const key of Object.keys(map)) {
+    if (lower.includes(key)) return map[key];
+  }
+  for (const cat of BUSINESS_CATEGORIES) {
+    if (lower.includes(cat.toLowerCase())) return cat;
+  }
+  return null;
+}
+
+function extractBossKuKeywords(raw: string, location: string | null, category: string | null): string[] {
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((w) => !STOPWORDS.has(w))
+    .filter((w) => w.length > 1)
+    .filter((w) => !(location && location.toLowerCase().includes(w)))
+    .filter((w) => !(category && category.toLowerCase().includes(w)));
+  return Array.from(new Set(cleaned)).slice(0, 8);
+}
+
+async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
+  const lower = rawMessage.toLowerCase();
+  const detectedLocation = detectBossKuLocation(lower);
+  const detectedCategory = detectBossKuCategory(lower);
+  const wantsCheapest = CHEAP_WORDS.some((w) => lower.includes(w));
+  const wantsSeller = SELLER_INTENT_WORDS.some((w) => lower.includes(w));
+  const priceMatch = lower.match(/(?:bawah|under|kurang(?:\s+dari)?|below)\s*rm?\s*(\d+)/);
+  const priceCeiling = priceMatch ? parseInt(priceMatch[1], 10) : null;
+  const keywords = extractBossKuKeywords(rawMessage, detectedLocation, detectedCategory);
+
+  const { data: productRows } = await supabase
+    .from("products")
+    .select("*, sellers!inner(id, business_name, owner_name, location, phone_number, is_approved, verification_tier, address)")
+    .eq("is_available", true)
+    .eq("is_published", true);
+
+  let candidates = (productRows || []).filter((p: any) => p.sellers?.is_approved !== false);
+
+  if (detectedLocation) {
+    candidates = candidates.filter((p: any) => p.sellers?.location === detectedLocation);
+  }
+  if (detectedCategory) {
+    candidates = candidates.filter((p: any) => p.category === detectedCategory);
+  }
+  if (priceCeiling !== null) {
+    candidates = candidates.filter((p: any) => Number(p.price) <= priceCeiling);
+  }
+  if (keywords.length > 0) {
+    const kwFiltered = candidates.filter((p: any) => {
+      const haystack = `${p.title} ${p.description || ""}`.toLowerCase();
+      return keywords.some((kw) => haystack.includes(kw));
+    });
+    // Only narrow by free-text keywords if it doesn't wipe out every result —
+    // otherwise fall back to the location/category/price filters alone.
+    if (kwFiltered.length > 0) candidates = kwFiltered;
+  }
+
+  // Pull ratings for sorting/comparison
+  const sellerIds = Array.from(new Set(candidates.map((p: any) => p.seller_id)));
+  const { data: reviewRows } = sellerIds.length
+    ? await supabase.from("reviews").select("seller_id, rating").in("seller_id", sellerIds)
+    : { data: [] as any[] };
+  const ratingBySeller = new Map<string, { total: number; count: number }>();
+  for (const r of reviewRows || []) {
+    const bucket = ratingBySeller.get(r.seller_id) || { total: 0, count: 0 };
+    bucket.total += r.rating;
+    bucket.count += 1;
+    ratingBySeller.set(r.seller_id, bucket);
+  }
+  const withRating = candidates.map((p: any) => {
+    const rb = ratingBySeller.get(p.seller_id);
+    const avgRating = rb && rb.count > 0 ? parseFloat((rb.total / rb.count).toFixed(1)) : 0;
+    return { ...p, _avgRating: avgRating, _reviewCount: rb?.count || 0 };
+  });
+
+  withRating.sort((a: any, b: any) => {
+    if (wantsCheapest) return Number(a.price) - Number(b.price);
+    // Default: best rating first, tie-broken by verification tier, then cheaper price
+    if (b._avgRating !== a._avgRating) return b._avgRating - a._avgRating;
+    return Number(a.price) - Number(b.price);
+  });
+
+  const topProducts = withRating.slice(0, 5).map((p: any) => ({
+    id: p.id,
+    title: p.title,
+    price: Number(p.price),
+    imageUrl: p.image_url,
+    category: p.category,
+    sellerId: p.seller_id,
+    businessName: p.sellers?.business_name || "",
+    ownerName: p.sellers?.owner_name || "",
+    location: p.sellers?.location || "",
+    phoneNumber: p.sellers?.phone_number || "",
+    verificationTier: p.sellers?.verification_tier || "None",
+    averageRating: p._avgRating,
+    reviewCount: p._reviewCount,
+  }));
+
+  let topSellers: any[] = [];
+  if (wantsSeller || topProducts.length === 0) {
+    let sellerQuery = supabase.from("sellers").select("*").eq("is_approved", true);
+    if (detectedLocation) sellerQuery = sellerQuery.eq("location", detectedLocation);
+    if (detectedCategory) sellerQuery = sellerQuery.eq("category", detectedCategory);
+    const { data: sellerRows } = await sellerQuery;
+    let sellerCandidates = sellerRows || [];
+    if (keywords.length > 0) {
+      const kwFiltered = sellerCandidates.filter((s: any) => {
+        const haystack = `${s.business_name} ${s.dream || ""}`.toLowerCase();
+        return keywords.some((kw) => haystack.includes(kw));
+      });
+      if (kwFiltered.length > 0) sellerCandidates = kwFiltered;
+    }
+    topSellers = sellerCandidates.slice(0, 5).map((s: any) => ({
+      id: s.id,
+      businessName: s.business_name,
+      ownerName: s.owner_name,
+      category: s.category,
+      location: s.location,
+      phoneNumber: s.phone_number,
+      verificationTier: s.verification_tier || "None",
+      logoUrl: s.logo_url,
+      averageRating: ratingBySeller.get(s.id)
+        ? parseFloat(((ratingBySeller.get(s.id)!.total) / (ratingBySeller.get(s.id)!.count)).toFixed(1))
+        : 0,
+    }));
+  }
+
+  const resultCount = topProducts.length + topSellers.length;
+
+  // --- Build the reply text, bilingual Sabahan tone ---
+  const bits: string[] = [];
+  const locTxt = detectedLocation ? ` kat ${detectedLocation}` : "";
+  const catTxt = detectedCategory ? ` untuk "${detectedCategory}"` : "";
+
+  if (language === "BM") {
+    bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
+    if (resultCount === 0) {
+      bits.push("Ish, ndamu jumpa lagi barang/kedai yang padan tu bah. Cuba kau tukar sikit kata carian, atau bagitau kawasan lain kunuh.");
+    } else if (topProducts.length > 0) {
+      bits.push(`Ada ${topProducts.length} pilihan yang Bossku rasa padan, saya susun ikut ${wantsCheapest ? "harga paling murah" : "rating paling top"} dulu bah:`);
+    } else {
+      bits.push(`Ndada barang yang match tapi ada ${topSellers.length} kedai yang boleh kau try bah, cuba tanya depa terus.`);
+    }
+  } else {
+    bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
+    if (resultCount === 0) {
+      bits.push("Aiyo, cannot find any match one lah. Try lain keyword, or tell me another area can bah.");
+    } else if (topProducts.length > 0) {
+      bits.push(`Got ${topProducts.length} pick that Bossku rasa cocok, sorted by ${wantsCheapest ? "cheapest price" : "best rating"} first bah:`);
+    } else {
+      bits.push(`No product match exactly, but got ${topSellers.length} shop you can try bah, just ask them direct.`);
+    }
+  }
+
+  return {
+    reply: bits.join(" "),
+    products: topProducts,
+    sellers: topSellers,
+    detectedCategory,
+    detectedLocation,
+    keywords,
+    resultCount,
+  };
+}
+
 // Computes { averageRating, reviewCount } for a seller from the reviews table
 async function getSellerRatingSummary(sellerId: string) {
   const { data: reviews } = await supabase.from("reviews").select("rating").eq("seller_id", sellerId);
@@ -1059,6 +1319,36 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/track/visit", err);
       res.status(500).json({ error: "Failed to record visit." });
+    }
+  });
+
+  // Bossku — the Home page AI shopping assistant chat endpoint.
+  app.post("/api/bossku/chat", async (req, res) => {
+    try {
+      const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+      const sessionId = typeof req.body?.sessionId === "string" && req.body.sessionId ? req.body.sessionId : "anon_" + Math.random().toString(36).substr(2, 10);
+      const language: "EN" | "BM" = req.body?.language === "BM" ? "BM" : "EN";
+
+      if (!message) {
+        return res.status(400).json({ error: "Message is required." });
+      }
+
+      const result = await runBossKuSearch(message, language);
+
+      logBossKuQuery({
+        sessionId,
+        message,
+        language,
+        detectedCategory: result.detectedCategory,
+        detectedLocation: result.detectedLocation,
+        keywords: result.keywords,
+        resultCount: result.resultCount,
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("POST /api/bossku/chat", err);
+      res.status(500).json({ error: "Bossku is having trouble right now, try again bah." });
     }
   });
 
@@ -2414,6 +2704,90 @@ async function startServer() {
     } catch (err: any) {
       console.error("GET /api/admin/analytics", err);
       res.status(500).json({ error: "Failed to load analytics." });
+    }
+  });
+
+  // Admin report: what visitors are asking Bossku for — top keywords,
+  // categories, districts, unmet demand (zero-result queries), volume trend
+  // and a raw recent-conversation feed.
+  app.get("/api/admin/bossku-analytics", requireAdminAuth, async (req, res) => {
+    try {
+      const days = Math.min(180, Math.max(1, parseInt(req.query.days as string) || 30));
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data, error } = await supabase
+        .from("bossku_queries")
+        .select("id, session_id, message, language, detected_category, detected_location, keywords, result_count, created_at")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const rows = data || [];
+
+      const byDateMap = new Map<string, number>();
+      const categoryCounts = new Map<string, number>();
+      const locationCounts = new Map<string, number>();
+      const keywordCounts = new Map<string, number>();
+      let zeroResultCount = 0;
+      const sessionIds = new Set<string>();
+
+      for (const r of rows) {
+        const dateKey = new Date(r.created_at).toISOString().slice(0, 10);
+        byDateMap.set(dateKey, (byDateMap.get(dateKey) || 0) + 1);
+        if (r.detected_category) categoryCounts.set(r.detected_category, (categoryCounts.get(r.detected_category) || 0) + 1);
+        if (r.detected_location) locationCounts.set(r.detected_location, (locationCounts.get(r.detected_location) || 0) + 1);
+        for (const kw of r.keywords || []) {
+          keywordCounts.set(kw, (keywordCounts.get(kw) || 0) + 1);
+        }
+        if ((r.result_count || 0) === 0) zeroResultCount++;
+        sessionIds.add(r.session_id);
+      }
+
+      const daily = Array.from(byDateMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const topCategories = Array.from(categoryCounts.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      const topLocations = Array.from(locationCounts.entries())
+        .map(([location, count]) => ({ location, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      const topKeywords = Array.from(keywordCounts.entries())
+        .map(([keyword, count]) => ({ keyword, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+      const recentQueries = rows.slice(0, 100).map((r: any) => ({
+        id: r.id,
+        message: r.message,
+        language: r.language,
+        detectedCategory: r.detected_category || undefined,
+        detectedLocation: r.detected_location || undefined,
+        keywords: r.keywords || [],
+        resultCount: r.result_count || 0,
+        createdAt: r.created_at,
+      }));
+
+      res.json({
+        rangeDays: days,
+        totalQueries: rows.length,
+        uniqueSessions: sessionIds.size,
+        zeroResultCount,
+        zeroResultRate: rows.length > 0 ? parseFloat(((zeroResultCount / rows.length) * 100).toFixed(1)) : 0,
+        daily,
+        topCategories,
+        topLocations,
+        topKeywords,
+        recentQueries,
+      });
+    } catch (err: any) {
+      console.error("GET /api/admin/bossku-analytics", err);
+      res.status(500).json({ error: "Failed to load Bossku analytics." });
     }
   });
 

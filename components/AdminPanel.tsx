@@ -5,7 +5,8 @@ import {
   Check, X, ArrowUpRight, TrendingUp, RefreshCw, Lock,
   ExternalLink, Code, Terminal, Info, Settings, Play, Server, FileText,
   ChevronDown, HelpCircle, Bell, User, MoreVertical, Menu, ShieldAlert,
-  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity
+  Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity,
+  Sparkles, MessageSquareText
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
@@ -91,7 +92,7 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "publish" | "logs" | "admins" | "yaml" | "categories" | "contacts">("metrics");
+  const [activeTab, setActiveTab] = useState<"metrics" | "merchants" | "revisions" | "publish" | "logs" | "admins" | "yaml" | "categories" | "contacts" | "bossku">("metrics");
 
   // --- Category management (admin-editable business categories) ---
   const { categories: adminCategories, colors: adminCategoryColors } = useCategories();
@@ -112,6 +113,30 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   } | null>(null);
   const [analyticsDays, setAnalyticsDays] = useState<number>(30);
   const [analyticsLastUpdated, setAnalyticsLastUpdated] = useState<Date | null>(null);
+
+  // Bossku AI assistant analytics — what visitors are asking the Home page chatbot for
+  const [bossku, setBossku] = useState<{
+    totalQueries: number;
+    uniqueSessions: number;
+    zeroResultCount: number;
+    zeroResultRate: number;
+    daily: { date: string; count: number }[];
+    topCategories: { category: string; count: number }[];
+    topLocations: { location: string; count: number }[];
+    topKeywords: { keyword: string; count: number }[];
+    recentQueries: {
+      id: string;
+      message: string;
+      language: string;
+      detectedCategory?: string;
+      detectedLocation?: string;
+      keywords: string[];
+      resultCount: number;
+      createdAt: string;
+    }[];
+  } | null>(null);
+  const [bosskuDays, setBosskuDays] = useState<number>(30);
+  const [bosskuLastUpdated, setBosskuLastUpdated] = useState<Date | null>(null);
 
   // Normalizes a raw MY phone number to +60 international format for WhatsApp/Contacts import
   const normalizePhone = (raw: string): string => {
@@ -393,6 +418,18 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
     }
   };
 
+  const fetchBossKuAnalytics = async () => {
+    try {
+      const res = await fetch(`/api/admin/bossku-analytics?days=${bosskuDays}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setBossku(data);
+      setBosskuLastUpdated(new Date());
+    } catch (error) {
+      console.error("Failed to load Bossku analytics", error);
+    }
+  };
+
   // Reset page numbers on filters change
   useEffect(() => {
     setSellersPage(1);
@@ -422,6 +459,14 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
     const interval = setInterval(fetchAnalytics, 20000);
     return () => clearInterval(interval);
   }, [activeTab, analyticsDays]);
+
+  // Live-refresh the Bossku AI analytics while its tab is open
+  useEffect(() => {
+    if (activeTab !== "bossku") return;
+    fetchBossKuAnalytics();
+    const interval = setInterval(fetchBossKuAnalytics, 20000);
+    return () => clearInterval(interval);
+  }, [activeTab, bosskuDays]);
 
   // Set initial YAML config
   useEffect(() => {
@@ -1065,6 +1110,18 @@ spec:
         >
           <Phone className="w-3.5 h-3.5" />
           <span>CONTACT LIST</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("bossku")}
+          className={`py-3.5 px-3 font-semibold text-[13px] tracking-wide transition-all whitespace-nowrap cursor-pointer border-b-2 flex items-center gap-1.5 ${
+            activeTab === "bossku"
+              ? "border-[#8ab4f8] text-[#8ab4f8] font-bold"
+              : "border-transparent text-[#9aa0a6] hover:text-[#f1f3f4]"
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>BOSSKU AI</span>
         </button>
       </div>
 
@@ -2656,6 +2713,236 @@ spec:
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* TAB: BOSSKU AI — what visitors are asking the Home page chatbot for */}
+            {activeTab === "bossku" && (
+              <div className="space-y-5 animate-in duration-200">
+                <section className="bg-[#202124] border border-[#3c4043] rounded-lg shadow-md overflow-hidden">
+                  <div className="px-5 py-4 border-b border-[#3c4043] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#8ab4f8]" />
+                      <div>
+                        <h3 className="text-[#e8eaed] font-bold text-sm">Bossku AI — Visitor Demand Report</h3>
+                        <p className="text-[10px] text-[#9aa0a6] mt-0.5">
+                          {bosskuLastUpdated ? `Updated ${timeAgo(bosskuLastUpdated.toISOString())} · auto-refreshes every 20s` : "Loading..."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {[7, 30, 90].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setBosskuDays(d)}
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                            bosskuDays === d
+                              ? "bg-[#8ab4f8] text-[#1a1a1a]"
+                              : "border border-[#5f6368] text-[#9aa0a6] hover:text-[#e8eaed]"
+                          }`}
+                        >
+                          {d}D
+                        </button>
+                      ))}
+                      <button
+                        onClick={fetchBossKuAnalytics}
+                        className="p-1.5 rounded border border-[#5f6368] text-[#9aa0a6] hover:text-[#e8eaed] transition-colors cursor-pointer"
+                        title="Refresh now"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {!bossku ? (
+                    <div className="py-10 text-center text-slate-400 text-xs italic">Loading Bossku analytics…</div>
+                  ) : (
+                    <div className="p-5 space-y-6">
+                      {/* Headline stats */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3.5">
+                          <span className="text-[#e8eaed] font-bold text-lg font-mono block">{bossku.totalQueries}</span>
+                          <span className="text-[10px] text-[#9aa0a6]">messages ({bosskuDays}d)</span>
+                        </div>
+                        <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3.5">
+                          <span className="text-[#e8eaed] font-bold text-lg font-mono block">{bossku.uniqueSessions}</span>
+                          <span className="text-[10px] text-[#9aa0a6]">unique visitors chatted</span>
+                        </div>
+                        <div className="bg-[#2a2b2f] border border-[#3c4043] rounded-lg p-3.5">
+                          <span className="text-[#e8eaed] font-bold text-lg font-mono block">{bossku.zeroResultCount}</span>
+                          <span className="text-[10px] text-[#9aa0a6]">zero-result queries</span>
+                        </div>
+                        <div className="bg-[#2a2b2f] border border-amber-500/30 rounded-lg p-3.5">
+                          <span className="text-[#fdd663] font-bold text-lg font-mono block">{bossku.zeroResultRate}%</span>
+                          <span className="text-[10px] text-[#9aa0a6]">unmet demand rate</span>
+                        </div>
+                      </div>
+
+                      {/* Volume trend line */}
+                      {bossku.daily.length === 0 ? (
+                        <div className="py-6 text-center text-slate-500 text-xs italic border border-[#3c4043] rounded-lg">
+                          No Bossku conversations in this range yet.
+                        </div>
+                      ) : (
+                        <div>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2">Message Volume</h4>
+                          <svg viewBox="0 0 600 140" className="w-full h-32">
+                            <polyline
+                              fill="none"
+                              stroke="#8ab4f8"
+                              strokeWidth="2"
+                              points={buildLinePoints(bossku.daily.map((d) => d.count), 600, 140)}
+                            />
+                          </svg>
+                          <div className="flex justify-between text-[9px] text-[#9aa0a6] font-mono mt-1">
+                            <span>{formatShortDate(bossku.daily[0].date)}</span>
+                            {bossku.daily.length > 2 && (
+                              <span>{formatShortDate(bossku.daily[Math.floor(bossku.daily.length / 2)].date)}</span>
+                            )}
+                            <span>{formatShortDate(bossku.daily[bossku.daily.length - 1].date)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top categories / locations / keywords */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2">Top Requested Categories</h4>
+                          {bossku.topCategories.length === 0 ? (
+                            <p className="text-[11px] text-slate-500 italic">No data yet.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {bossku.topCategories.map((c) => {
+                                const max = Math.max(1, ...bossku.topCategories.map((x) => x.count));
+                                return (
+                                  <div key={c.category}>
+                                    <div className="flex justify-between text-[10px] text-[#bdc1c6] mb-0.5">
+                                      <span className="truncate">{c.category}</span>
+                                      <span className="font-mono font-bold">{c.count}</span>
+                                    </div>
+                                    <div className="h-1.5 bg-[#2a2b2f] rounded-full overflow-hidden">
+                                      <div className="h-full bg-[#8ab4f8]" style={{ width: `${(c.count / max) * 100}%` }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2">Top Requested Districts</h4>
+                          {bossku.topLocations.length === 0 ? (
+                            <p className="text-[11px] text-slate-500 italic">No data yet.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {bossku.topLocations.map((l) => {
+                                const max = Math.max(1, ...bossku.topLocations.map((x) => x.count));
+                                return (
+                                  <div key={l.location}>
+                                    <div className="flex justify-between text-[10px] text-[#bdc1c6] mb-0.5">
+                                      <span className="truncate flex items-center gap-1">
+                                        <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                        {l.location}
+                                      </span>
+                                      <span className="font-mono font-bold">{l.count}</span>
+                                    </div>
+                                    <div className="h-1.5 bg-[#2a2b2f] rounded-full overflow-hidden">
+                                      <div className="h-full bg-emerald-400" style={{ width: `${(l.count / max) * 100}%` }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2">Top Search Keywords</h4>
+                          {bossku.topKeywords.length === 0 ? (
+                            <p className="text-[11px] text-slate-500 italic">No data yet.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {bossku.topKeywords.map((k) => (
+                                <span
+                                  key={k.keyword}
+                                  className="bg-[#2a2b2f] border border-[#3c4043] text-[#e8eaed] text-[10px] font-semibold px-2 py-1 rounded-full flex items-center gap-1"
+                                >
+                                  {k.keyword}
+                                  <span className="text-[#8ab4f8] font-mono">{k.count}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Recent conversation feed */}
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0a6] mb-2 flex items-center gap-1.5">
+                          <MessageSquareText className="w-3.5 h-3.5" />
+                          Recent Conversations
+                        </h4>
+                        <div className="max-h-[420px] overflow-y-auto rounded-lg border border-[#3c4043]">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead className="sticky top-0">
+                              <tr className="border-b border-[#3c4043] bg-[#2a2b2f] text-[#9aa0a6] font-bold uppercase tracking-wider text-[9px]">
+                                <th className="py-2.5 px-3">Message</th>
+                                <th className="py-2.5 px-3">Detected</th>
+                                <th className="py-2.5 px-3 w-20">Results</th>
+                                <th className="py-2.5 px-3 w-24">When</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#3c4043] text-[#bdc1c6]">
+                              {bossku.recentQueries.length === 0 ? (
+                                <tr>
+                                  <td colSpan={4} className="py-10 text-center text-slate-400 italic">
+                                    No conversations yet.
+                                  </td>
+                                </tr>
+                              ) : (
+                                bossku.recentQueries.map((q) => (
+                                  <tr key={q.id} className="hover:bg-[#2d3033] transition-colors align-top">
+                                    <td className="py-2.5 px-3 max-w-xs">
+                                      <span className="text-[#e8eaed]">{q.message}</span>
+                                      <span className="ml-1.5 text-[9px] text-[#9aa0a6] uppercase">{q.language}</span>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex flex-col gap-0.5">
+                                        {q.detectedCategory && (
+                                          <span className="text-[10px] text-[#8ab4f8]">{q.detectedCategory}</span>
+                                        )}
+                                        {q.detectedLocation && (
+                                          <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
+                                            <MapPin className="w-2.5 h-2.5" />
+                                            {q.detectedLocation}
+                                          </span>
+                                        )}
+                                        {!q.detectedCategory && !q.detectedLocation && (
+                                          <span className="text-[10px] text-[#5f6368] italic">—</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <span
+                                        className={`font-mono font-bold text-[11px] ${
+                                          q.resultCount === 0 ? "text-[#fdd663]" : "text-[#81c995]"
+                                        }`}
+                                      >
+                                        {q.resultCount}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-[10px] text-[#9aa0a6]">{timeAgo(q.createdAt)}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </section>
               </div>
             )}
 
