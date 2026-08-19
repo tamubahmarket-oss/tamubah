@@ -865,21 +865,23 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const catTxt = detectedCategory ? ` untuk "${detectedCategory}"` : "";
 
   if (language === "BM") {
-    bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
     if (resultCount === 0) {
+      bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
       bits.push("Ish, ndamu jumpa lagi barang/kedai yang padan tu bah. Cuba kau tukar sikit kata carian, atau bagitau kawasan lain kunuh.");
     } else if (topProducts.length > 0) {
-      bits.push(`Ada ${topProducts.length} pilihan yang Bossku rasa padan, saya susun ikut ${wantsCheapest ? "harga paling murah" : "rating paling top"} dulu bah:`);
+      bits.push(`Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
     } else {
+      bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
       bits.push(`Ndada barang yang match tapi ada ${topSellers.length} kedai yang boleh kau try bah, cuba tanya depa terus.`);
     }
   } else {
-    bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
     if (resultCount === 0) {
+      bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
       bits.push("Aiyo, cannot find any match one lah. Try lain keyword, or tell me another area can bah.");
     } else if (topProducts.length > 0) {
-      bits.push(`Got ${topProducts.length} pick that Bossku rasa cocok, sorted by ${wantsCheapest ? "cheapest price" : "best rating"} first bah:`);
+      bits.push(`Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
     } else {
+      bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
       bits.push(`No product match exactly, but got ${topSellers.length} shop you can try bah, just ask them direct.`);
     }
   }
