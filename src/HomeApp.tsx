@@ -9,6 +9,7 @@ import {
 import { useLanguage } from "./lib/LanguageContext";
 import { Seller } from "./types";
 import HomePage from "./components/HomePage";
+import BossKuChat from "./components/BossKuChat";
 import { useAnnouncement, markAnnouncementSeen } from "./lib/announcementStore";
 
 export default function HomeApp() {
@@ -337,6 +338,9 @@ export default function HomeApp() {
           onJoinAsSeller={goToJoinAsSeller}
         />
       </main>
+
+      {/* Bossku AI shopping assistant — Home page only */}
+      <BossKuChat />
     </div>
   );
 }

@@ -479,6 +479,14 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
         </div>
       </section>
 
+      {/* Ownership / legal footer */}
+      <section className="max-w-4xl mx-auto px-4 pb-10">
+        <p className="text-center text-[11px] text-slate-400 leading-relaxed">
+          {isEN ? "Owned & operated by" : "Dimiliki & dikendalikan oleh"}{" "}
+          <span className="font-semibold text-slate-500">TAMUBAH GLOBAL 202603219687 (AS0520291-W)</span>
+        </p>
+      </section>
+
     </div>
   );
 }
