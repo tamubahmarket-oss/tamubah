@@ -170,12 +170,24 @@ create table if not exists stories (
   media_url    text not null,
   media_type   text not null check (media_type in ('image', 'video')),
   caption      text default '',
+  like_count   integer not null default 0,
   created_at   timestamptz not null default now(),
   expires_at   timestamptz not null
 );
 
 create index if not exists idx_stories_seller_id on stories(seller_id);
 create index if not exists idx_stories_expires_at on stories(expires_at);
+
+-- story_views — one row per (story, viewer) so the seller sees a genuine
+-- unique-viewer count rather than a raw play-count.
+create table if not exists story_views (
+  story_id    text not null references stories(id) on delete cascade,
+  viewer_id   text not null,
+  created_at  timestamptz not null default now(),
+  primary key (story_id, viewer_id)
+);
+
+create index if not exists idx_story_views_story_id on story_views(story_id);
 
 -- ---------------------------------------------------------------------------
 -- community forum — Reddit-style discussion space for registered/approved
@@ -343,6 +355,7 @@ alter table app_stats       enable row level security;
 alter table publish_requests enable row level security;
 alter table receipts        enable row level security;
 alter table stories         enable row level security;
+alter table story_views     enable row level security;
 alter table community_topics  enable row level security;
 alter table community_replies enable row level security;
 alter table community_votes   enable row level security;

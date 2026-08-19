@@ -126,9 +126,11 @@ export interface Story {
   mediaUrl: string;
   mediaType: "image" | "video";
   caption: string;
+  likeCount: number;
   createdAt: string;
   expiresAt: string;
   // Enriched fields (present on the public feed)
+  viewCount?: number;
   businessName?: string;
   sellerLogoUrl?: string;
   sellerVerificationTier?: "None" | "Licensed" | "Bronze" | "Silver" | "Gold";

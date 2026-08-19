@@ -563,6 +563,7 @@ function storyToApi(s: any) {
     mediaUrl: s.media_url,
     mediaType: s.media_type,
     caption: s.caption || "",
+    likeCount: s.like_count || 0,
     createdAt: s.created_at,
     expiresAt: s.expires_at,
   };
@@ -1010,9 +1011,21 @@ async function startServer() {
         : { data: [] as any[] };
       const sellerById = new Map((sellers || []).map((s: any) => [s.id, s]));
 
+      // Unique-viewer counts, only needed by the seller's own "My Stories" panel,
+      // but cheap enough to include for every story returned here.
+      const storyIds = (stories || []).map((s: any) => s.id);
+      const { data: viewRows } = storyIds.length
+        ? await supabase.from("story_views").select("story_id").in("story_id", storyIds)
+        : { data: [] as any[] };
+      const viewCountByStory = new Map<string, number>();
+      for (const v of viewRows || []) {
+        viewCountByStory.set(v.story_id, (viewCountByStory.get(v.story_id) || 0) + 1);
+      }
+
       res.json(
         (stories || []).map((s: any) => ({
           ...storyToApi(s),
+          viewCount: viewCountByStory.get(s.id) || 0,
           businessName: sellerById.get(s.seller_id)?.business_name || "TamuBah Seller",
           sellerLogoUrl: sellerById.get(s.seller_id)?.logo_url || undefined,
           sellerVerificationTier: sellerById.get(s.seller_id)?.verification_tier || "None",
@@ -1042,6 +1055,52 @@ async function startServer() {
     } catch (err: any) {
       console.error("DELETE /api/stories/:id", err);
       res.status(500).json({ error: "Failed to delete story." });
+    }
+  });
+
+  // Records a unique viewer for a story (dedup'd server-side by story+viewer,
+  // so reopening the same story doesn't inflate the seller's view count).
+  app.post("/api/stories/:id/view", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const viewerId = typeof req.body?.viewerId === "string" && req.body.viewerId ? req.body.viewerId : null;
+      if (!viewerId) return res.status(400).json({ error: "viewerId is required." });
+
+      await supabase.from("story_views").upsert(
+        { story_id: id, viewer_id: viewerId },
+        { onConflict: "story_id,viewer_id", ignoreDuplicates: true }
+      );
+
+      const { count } = await supabase
+        .from("story_views")
+        .select("*", { count: "exact", head: true })
+        .eq("story_id", id);
+
+      res.json({ viewCount: count || 0 });
+    } catch (err: any) {
+      console.error("POST /api/stories/:id/view", err);
+      res.status(500).json({ error: "Failed to record view." });
+    }
+  });
+
+  // Adds one or more "flying love" taps to a story's like count. Batched
+  // client-side, so `count` may be >1 for a burst of rapid taps.
+  app.post("/api/stories/:id/like", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const increment = Math.max(1, Math.min(50, parseInt(req.body?.count, 10) || 1));
+
+      const { data: story } = await supabase.from("stories").select("like_count").eq("id", id).maybeSingle();
+      if (!story) return res.status(404).json({ error: "Story not found." });
+
+      const newCount = (story.like_count || 0) + increment;
+      const { error } = await supabase.from("stories").update({ like_count: newCount }).eq("id", id);
+      if (error) throw error;
+
+      res.json({ likeCount: newCount });
+    } catch (err: any) {
+      console.error("POST /api/stories/:id/like", err);
+      res.status(500).json({ error: "Failed to like story." });
     }
   });
 

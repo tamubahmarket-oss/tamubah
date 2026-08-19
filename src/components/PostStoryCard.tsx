@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, Video, X, Clock, Upload } from "lucide-react";
+import { Camera, Video, X, Clock, Upload, Eye, Heart } from "lucide-react";
 import { Seller, Story } from "../types";
 import { compressAndResizeImage } from "../utils";
 
@@ -176,6 +176,16 @@ export default function PostStoryCard({ seller }: PostStoryCardProps) {
               <span className="absolute bottom-1 left-1 right-1 text-[8px] text-white bg-black/50 rounded px-1 py-0.5 flex items-center gap-0.5 justify-center">
                 <Clock className="w-2 h-2 shrink-0" />
                 {timeLeft(s.expiresAt)}
+              </span>
+              <span className="absolute top-1 left-1 flex items-center gap-1">
+                <span className="flex items-center gap-0.5 text-[8px] font-bold text-white bg-black/50 rounded px-1 py-0.5">
+                  <Eye className="w-2 h-2 shrink-0" />
+                  {s.viewCount ?? 0}
+                </span>
+                <span className="flex items-center gap-0.5 text-[8px] font-bold text-white bg-black/50 rounded px-1 py-0.5">
+                  <Heart className="w-2 h-2 shrink-0 fill-rose-400 text-rose-400" />
+                  {s.likeCount ?? 0}
+                </span>
               </span>
             </div>
           ))}
