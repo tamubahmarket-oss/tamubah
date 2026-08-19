@@ -693,6 +693,46 @@ const QUALITY_WORDS = [
   "reliable ka", "boleh percaya", "trusted kah", "power kah", "power ka",
 ];
 
+// Real product attributes Bossku can spot inside title/description text, so
+// its follow-up question is grounded in what's actually being sold ("pedas
+// kah atau murah kah?") instead of a generic scripted prompt.
+const PRODUCT_DESCRIPTORS: { match: string[]; bm: string; en: string }[] = [
+  { match: ["pedas", "spicy"], bm: "pedas", en: "spicy" },
+  { match: ["manis", "sweet"], bm: "manis", en: "sweet" },
+  { match: ["masin", "asin", "savoury", "savory"], bm: "masin", en: "savoury" },
+  { match: ["sejuk", "ais", "iced", "cold"], bm: "sejuk", en: "cold/iced" },
+  { match: ["rangup", "crispy", "crunchy"], bm: "rangup", en: "crispy" },
+  { match: ["lembut", "soft"], bm: "lembut", en: "soft" },
+  { match: ["homemade", "buatan sendiri", "buatan tangan", "handmade"], bm: "buatan sendiri", en: "homemade" },
+  { match: ["halal"], bm: "halal", en: "halal" },
+  { match: ["murah", "cheap", "budget"], bm: "murah", en: "cheap" },
+  { match: ["premium", "mewah"], bm: "premium", en: "premium" },
+  { match: ["original", "asli"], bm: "original", en: "original" },
+  { match: ["organic", "organik"], bm: "organik", en: "organic" },
+];
+
+// Scans a pool of products' title+description for real recurring attributes,
+// returns the top N most-common ones actually present (so Bossku never
+// invents an option nobody is selling).
+function findProductDescriptors(pool: { title: string; description?: string }[], limit = 2): { bm: string; en: string }[] {
+  const counts = new Map<string, { bm: string; en: string; count: number }>();
+  for (const item of pool) {
+    const haystack = `${item.title} ${(item as any).description || ""}`.toLowerCase();
+    for (const desc of PRODUCT_DESCRIPTORS) {
+      if (desc.match.some((m) => haystack.includes(m))) {
+        const key = desc.bm;
+        const existing = counts.get(key);
+        if (existing) existing.count++;
+        else counts.set(key, { bm: desc.bm, en: desc.en, count: 1 });
+      }
+    }
+  }
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(({ bm, en }) => ({ bm, en }));
+}
+
 function detectBossKuLocation(lower: string): string | null {
   for (const loc of SABAH_LOCATIONS) {
     if (lower.includes(loc.toLowerCase())) return loc;
@@ -878,22 +918,37 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   if (wantsQualityOpinion) {
     // "Sedap kah makanan di sini?" style questions — Bossku doesn't just list
     // matches, it vouches using real rating data and asks a follow-up to
-    // narrow things down, like a person actually answering the question.
+    // narrow things down, grounded in what's actually being sold ("pedas
+    // kah atau murah kah?") rather than a generic scripted prompt.
     const top = topProducts[0];
+    const descriptors = findProductDescriptors(withRating, 2);
+    const followUpBM =
+      descriptors.length === 2
+        ? `Boss mahu yang macam mana — ${descriptors[0].bm} kah atau ${descriptors[1].bm} kah?`
+        : descriptors.length === 1
+        ? `Boss mahu yang ${descriptors[0].bm} ka?`
+        : "Bagitau saya jenis makanan apa ka kawasan mana yang bossku nak, senang saya carikan.";
+    const followUpEN =
+      descriptors.length === 2
+        ? `What are you after — something ${descriptors[0].en} or ${descriptors[1].en}?`
+        : descriptors.length === 1
+        ? `Looking for something ${descriptors[0].en}?`
+        : "Just tell me what type of food or which area you're after, and I'll find it.";
+
     if (top) {
       const ratingTxt = top.averageRating > 0 ? `⭐ ${top.averageRating.toFixed(1)}` : (language === "BM" ? "belum ada rating lagi" : "no rating yet");
       if (language === "BM") {
         bits.push(`Sedap ke tidak ni memang ikut citarasa orang jua bah, tapi setakat ni rating paling tinggi ada pada "${top.title}" dari ${top.businessName} (${ratingTxt}).`);
-        bits.push("Nak saya carikan yang lebih spesifik? Bagitau saya jenis makanan apa ka kawasan mana yang bossku nak.");
+        bits.push(followUpBM);
       } else {
         bits.push(`Whether it's good really depends on taste bah, but so far the highest rated is "${top.title}" by ${top.businessName} (${ratingTxt}).`);
-        bits.push("Want me to narrow it down more? Just tell me what type of food or which area you're after.");
+        bits.push(followUpEN);
       }
     } else {
       bits.push(
         language === "BM"
-          ? "Belum ramai lagi yang bagi rating buat masa ni bah, tapi bagitau saya jenis makanan apa ka kawasan mana, nanti saya carikan yang terbaik untuk bossku."
-          : "Not enough ratings yet to say for sure bah, but tell me what type of food or which area, and I'll find the best options for you."
+          ? `Belum ramai lagi yang bagi rating buat masa ni bah. ${followUpBM}`
+          : `Not enough ratings yet to say for sure bah. ${followUpEN}`
       );
     }
   } else if (language === "BM") {
