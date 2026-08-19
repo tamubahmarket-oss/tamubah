@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  X, Send, Star, MapPin, ShieldCheck, MessageCircle, Sparkles,
+  X, Send, Star, MapPin, ShieldCheck, MessageCircle,
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
+import tamubahLogo from "../assets/images/traditional_bag_logo_1784122537315.jpg";
 
 // ============================================================================
 // BOSSKU — the Home page AI shopping assistant.
@@ -203,8 +204,8 @@ export default function BossKuChat() {
               <X className="w-3.5 h-3.5" />
             </button>
             <div className="flex items-center gap-2 mb-2">
-              <span className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-sm">
-                <Sparkles className="w-4 h-4 text-white" />
+              <span className="w-8 h-8 rounded-full bg-white border border-emerald-100 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+                <img src={tamubahLogo} alt="TamuBah" className="w-full h-full object-cover" />
               </span>
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Bossku AI</span>
             </div>
@@ -237,8 +238,8 @@ export default function BossKuChat() {
           >
             {/* Header */}
             <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-4 flex items-center gap-3 shrink-0">
-              <span className="w-9 h-9 rounded-full bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4.5 h-4.5" />
+              <span className="w-9 h-9 rounded-full bg-white border border-white/25 flex items-center justify-center shrink-0 overflow-hidden">
+                <img src={tamubahLogo} alt="TamuBah" className="w-full h-full object-cover" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-extrabold text-sm">Bossku</p>
@@ -393,9 +394,9 @@ export default function BossKuChat() {
         <button
           onClick={handleReopenLauncher}
           aria-label="Chat with Bossku"
-          className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl flex items-center justify-center text-white hover:scale-105 transition-transform cursor-pointer"
+          className="w-14 h-14 rounded-full bg-white shadow-xl border border-emerald-100 flex items-center justify-center hover:scale-105 transition-transform cursor-pointer overflow-hidden"
         >
-          <Sparkles className="w-6 h-6" />
+          <img src={tamubahLogo} alt="TamuBah" className="w-full h-full object-cover" />
         </button>
       )}
     </div>
