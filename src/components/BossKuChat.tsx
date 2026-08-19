@@ -102,8 +102,8 @@ export default function BossKuChat() {
 
   const welcomeText =
     language === "BM"
-      ? "Sini saya tolong cari bah! Saya Bossku 🙏 Cakap saja apa yang kau cari — makanan, kedai, barang apa-apa pun boleh — nanti saya bandingkan harga & rating sekali."
-      : "Sini saya tolong cari for you bah! I'm Bossku 🙏 Just tell me what you're looking for — food, a shop, anything la — I'll compare price & rating for you.";
+      ? "Hi saya TamuBah AI Assistant. Sini saya tolong u cari apa produk atau perkhidmatan orang kita yang ada di dalam aplikasi ini. Jangan malu, kita-kita juga bah ni.. tolong share juga supaya ramai orang tahu ya. Bah! cari apa?"
+      : "Hi saya TamuBah AI Assistant. Sini saya tolong u cari apa produk atau perkhidmatan orang kita yang ada di dalam aplikasi ini. Jangan malu, kita-kita juga bah ni.. tolong share juga supaya ramai orang tahu ya. Bah! cari apa?";
 
   const handleDismissPopup = () => {
     setShowPopup(false);
