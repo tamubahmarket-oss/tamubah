@@ -683,6 +683,15 @@ const STOPWORDS = new Set([
 
 const CHEAP_WORDS = ["murah", "cheap", "cheapest", "paling murah", "budget", "affordable"];
 const SELLER_INTENT_WORDS = ["kedai", "penjual", "seller", "shop", "store", "peniaga", "tukang"];
+// Quality/opinion questions ("is the food good here?", "sedap kah?") don't name
+// a specific product — they're asking Bossku to vouch for something using real
+// rating data, so they get a different, more advisory-style reply.
+const QUALITY_WORDS = [
+  "sedap", "sedap kah", "sedap ka", "bagus kah", "bagus ka", "best kah", "best ka",
+  "best tak", "good kah", "good ka", "nice kah", "nice ka", "ok kah", "ok ka",
+  "recommend", "cadangan", "cadang", "worth it", "berbaloi", "reliable kah",
+  "reliable ka", "boleh percaya", "trusted kah", "power kah", "power ka",
+];
 
 function detectBossKuLocation(lower: string): string | null {
   for (const loc of SABAH_LOCATIONS) {
@@ -757,6 +766,7 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const detectedCategory = detectBossKuCategory(lower);
   const wantsCheapest = CHEAP_WORDS.some((w) => lower.includes(w));
   const wantsSeller = SELLER_INTENT_WORDS.some((w) => lower.includes(w));
+  const wantsQualityOpinion = QUALITY_WORDS.some((w) => lower.includes(w));
   const priceMatch = lower.match(/(?:bawah|under|kurang(?:\s+dari)?|below)\s*rm?\s*(\d+)/);
   const priceCeiling = priceMatch ? parseInt(priceMatch[1], 10) : null;
   const keywords = extractBossKuKeywords(rawMessage, detectedLocation, detectedCategory);
@@ -865,7 +875,28 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const locTxt = detectedLocation ? ` kat ${detectedLocation}` : "";
   const catTxt = detectedCategory ? ` untuk "${detectedCategory}"` : "";
 
-  if (language === "BM") {
+  if (wantsQualityOpinion) {
+    // "Sedap kah makanan di sini?" style questions — Bossku doesn't just list
+    // matches, it vouches using real rating data and asks a follow-up to
+    // narrow things down, like a person actually answering the question.
+    const top = topProducts[0];
+    if (top) {
+      const ratingTxt = top.averageRating > 0 ? `⭐ ${top.averageRating.toFixed(1)}` : (language === "BM" ? "belum ada rating lagi" : "no rating yet");
+      if (language === "BM") {
+        bits.push(`Sedap ke tidak ni memang ikut citarasa orang jua bah, tapi setakat ni rating paling tinggi ada pada "${top.title}" dari ${top.businessName} (${ratingTxt}).`);
+        bits.push("Nak saya carikan yang lebih spesifik? Bagitau saya jenis makanan apa ka kawasan mana yang bossku nak.");
+      } else {
+        bits.push(`Whether it's good really depends on taste bah, but so far the highest rated is "${top.title}" by ${top.businessName} (${ratingTxt}).`);
+        bits.push("Want me to narrow it down more? Just tell me what type of food or which area you're after.");
+      }
+    } else {
+      bits.push(
+        language === "BM"
+          ? "Belum ramai lagi yang bagi rating buat masa ni bah, tapi bagitau saya jenis makanan apa ka kawasan mana, nanti saya carikan yang terbaik untuk bossku."
+          : "Not enough ratings yet to say for sure bah, but tell me what type of food or which area, and I'll find the best options for you."
+      );
+    }
+  } else if (language === "BM") {
     if (resultCount === 0) {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
       bits.push("Ish, ndamu jumpa lagi barang/kedai yang padan tu bah. Cuba kau tukar sikit kata carian, atau bagitau kawasan lain kunuh.");
