@@ -20,7 +20,7 @@ interface MarketGridProps {
   selectedLocation?: string;
   onLocationChange?: (location: string) => void;
   initialSearchQuery?: string;
-  onViewSellerShop?: (sellerId: string) => void;
+  onViewSellerShop?: (sellerId: string, businessName?: string) => void;
 }
 
 export default function MarketGrid({ 
@@ -126,7 +126,7 @@ export default function MarketGrid({
 
   const handleViewSharedProductSeller = () => {
     if (sharedProduct) {
-      onViewSellerShop?.(sharedProduct.sellerId);
+      onViewSellerShop?.(sharedProduct.sellerId, sharedProduct.businessName);
       handleCloseSharedProduct();
     }
   };
@@ -515,7 +515,7 @@ export default function MarketGrid({
                   <div className="border-t border-slate-50 pt-2 flex flex-col gap-1.5 mt-auto">
                     <button
                       type="button"
-                      onClick={() => onViewSellerShop?.(p.sellerId)}
+                      onClick={() => onViewSellerShop?.(p.sellerId, p.businessName)}
                       title={`Click to view ${p.businessName} full business profile`}
                       className="flex items-center gap-1 cursor-pointer text-left group/btn hover:opacity-90"
                     >

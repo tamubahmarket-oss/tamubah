@@ -6,6 +6,7 @@ import {
   ExternalLink, Link2, BadgeCheck
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "../types";
+import { slugify } from "../lib/slug";
 import ShareModal from "./ShareModal";
 import { useLanguage } from "../lib/LanguageContext";
 import { LocationWatermark } from "../lib/locationIcons";
@@ -60,7 +61,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const handleOpenSellerModal = (s: SellerWithStats) => {
     setActiveSellerModal(s);
     if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", `/seller/${s.id}`);
+      window.history.replaceState({}, "", `/seller/${slugify(s.businessName)}`);
     }
   };
 
@@ -209,7 +210,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   const [copiedSellerId, setCopiedSellerId] = useState<string | null>(null);
 
   const handleShareSellerProfile = async (sellerId: string, businessName: string) => {
-    const shareUrl = `${window.location.origin}/seller/${sellerId}`;
+    const shareUrl = `${window.location.origin}/seller/${slugify(businessName)}`;
     const shareText = `Check out "${businessName}" on TamuBah Sabah Entrepreneur Marketplace! View their home-based products and ratings here:\n\n${shareUrl}`;
 
     setShareModalData({
@@ -236,14 +237,19 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
   useEffect(() => {
     if (typeof window !== "undefined" && sellers.length > 0) {
       const params = new URLSearchParams(window.location.search);
-      // Pretty /seller/:id path takes priority; ?sellerId=... still works
-      // for any links shared before the pretty-path rollout.
+      // Pretty /seller/:slug path takes priority; ?sellerId=... and the
+      // older raw-ID /seller/:id links still work as a fallback.
       const pathMatch = window.location.pathname.match(/^\/seller\/([^/]+)/);
-      const sharedSellerId = pathMatch ? pathMatch[1] : params.get("sellerId");
-      if (sharedSellerId) {
-        const foundSeller = sellers.find(s => s.id === sharedSellerId);
+      const sharedSellerSlugOrId = pathMatch ? pathMatch[1] : params.get("sellerId");
+      if (sharedSellerSlugOrId) {
+        const foundSeller = sellers.find(
+          (s) => slugify(s.businessName) === sharedSellerSlugOrId || s.id === sharedSellerSlugOrId
+        );
         if (foundSeller) {
           setActiveSellerModal(foundSeller);
+          // Normalize the URL to the readable slug once we've resolved it,
+          // so raw-ID/legacy links upgrade themselves for future shares.
+          window.history.replaceState({}, "", `/seller/${slugify(foundSeller.businessName)}`);
         }
       }
     }

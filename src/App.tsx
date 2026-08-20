@@ -10,6 +10,7 @@ import {
   Settings, Edit3, ShieldCheck
 } from "lucide-react";
 import { Seller, Product, SABAH_LOCATIONS } from "./types";
+import { slugify } from "./lib/slug";
 import MarketGrid from "./components/MarketGrid";
 import ShopDashboard from "./components/ShopDashboard";
 import SellerList from "./components/SellerList";
@@ -101,9 +102,12 @@ export default function App() {
 
   // Navigate to a seller's full shop (their real product catalog on the
   // Sellers tab), used wherever a seller is clicked from elsewhere in the
-  // app — a product card, a shared link, etc.
-  const handleViewSellerShop = (sellerId: string) => {
-    window.history.pushState({}, "", `/seller/${sellerId}`);
+  // app — a product card, a shared link, etc. Uses a readable /seller/:slug
+  // URL built from the shop's name when we have it; falls back to the raw
+  // seller ID so old-style links still work.
+  const handleViewSellerShop = (sellerId: string, businessName?: string) => {
+    const slug = businessName ? slugify(businessName) : sellerId;
+    window.history.pushState({}, "", `/seller/${slug}`);
     setActiveTab("sellers");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
