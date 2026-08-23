@@ -164,6 +164,39 @@ create index if not exists idx_receipts_created_at on receipts(created_at desc);
 -- auto-expires 24 hours after posting (filtered out in queries, not deleted
 -- immediately — a cleanup job prunes old rows periodically).
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- delivery_requests — a seller posts a delivery job (usually to get an
+-- order to a customer); any approved Services&Runners seller can browse
+-- open jobs and accept one, then move it through pickup -> delivery.
+-- ---------------------------------------------------------------------------
+create table if not exists delivery_requests (
+  id                text primary key,
+  seller_id         text not null references sellers(id) on delete cascade,
+  runner_id         text references sellers(id) on delete set null,
+  product_id        text references products(id) on delete set null,
+  product_title     text not null,
+  pickup_location   text not null,
+  pickup_address    text not null,
+  dropoff_location  text not null,
+  dropoff_address   text not null,
+  customer_name     text,
+  customer_phone    text not null,
+  delivery_fee      numeric(10,2) not null default 0,
+  notes             text default '',
+  status            text not null default 'open' check (status in ('open','accepted','picked_up','in_transit','delivered','cancelled')),
+  created_at        timestamptz not null default now(),
+  accepted_at       timestamptz,
+  picked_up_at      timestamptz,
+  delivered_at      timestamptz,
+  cancelled_at      timestamptz
+);
+
+create index if not exists idx_delivery_requests_status on delivery_requests(status);
+create index if not exists idx_delivery_requests_runner on delivery_requests(runner_id);
+create index if not exists idx_delivery_requests_seller on delivery_requests(seller_id);
+create index if not exists idx_delivery_requests_pickup on delivery_requests(pickup_location);
+create index if not exists idx_delivery_requests_created_at on delivery_requests(created_at desc);
+
 create table if not exists stories (
   id           text primary key,
   seller_id    text not null references sellers(id) on delete cascade,
@@ -356,6 +389,7 @@ alter table publish_requests enable row level security;
 alter table receipts        enable row level security;
 alter table stories         enable row level security;
 alter table story_views     enable row level security;
+alter table delivery_requests enable row level security;
 alter table community_topics  enable row level security;
 alter table community_replies enable row level security;
 alter table community_votes   enable row level security;

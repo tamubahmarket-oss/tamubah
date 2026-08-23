@@ -1202,6 +1202,206 @@ async function startServer() {
     return null;
   }
 
+  // ---------------------------------------------------------------------
+  // DELIVERY REQUESTS — sellers post a delivery job; approved
+  // Services&Runners sellers browse the open job board, accept one, and
+  // move it through pickup -> in transit -> delivered.
+  // ---------------------------------------------------------------------
+
+  function deliveryToApi(d: any) {
+    return {
+      id: d.id,
+      sellerId: d.seller_id,
+      runnerId: d.runner_id || undefined,
+      productId: d.product_id || undefined,
+      productTitle: d.product_title,
+      pickupLocation: d.pickup_location,
+      pickupAddress: d.pickup_address,
+      dropoffLocation: d.dropoff_location,
+      dropoffAddress: d.dropoff_address,
+      customerName: d.customer_name || undefined,
+      customerPhone: d.customer_phone,
+      deliveryFee: Number(d.delivery_fee) || 0,
+      notes: d.notes || "",
+      status: d.status,
+      createdAt: d.created_at,
+      acceptedAt: d.accepted_at || undefined,
+      pickedUpAt: d.picked_up_at || undefined,
+      deliveredAt: d.delivered_at || undefined,
+      cancelledAt: d.cancelled_at || undefined,
+    };
+  }
+
+  // Enriches a list of delivery rows with seller/runner business name + phone
+  async function enrichDeliveries(rows: any[]) {
+    const sellerIds = [...new Set([...rows.map((r) => r.seller_id), ...rows.filter((r) => r.runner_id).map((r) => r.runner_id)])];
+    const { data: sellers } = sellerIds.length
+      ? await supabase.from("sellers").select("id, business_name, phone_number, location").in("id", sellerIds)
+      : { data: [] as any[] };
+    const byId = new Map((sellers || []).map((s: any) => [s.id, s]));
+    return rows.map((d) => ({
+      ...deliveryToApi(d),
+      sellerBusinessName: byId.get(d.seller_id)?.business_name,
+      sellerPhoneNumber: byId.get(d.seller_id)?.phone_number,
+      runnerBusinessName: d.runner_id ? byId.get(d.runner_id)?.business_name : undefined,
+      runnerPhoneNumber: d.runner_id ? byId.get(d.runner_id)?.phone_number : undefined,
+    }));
+  }
+
+  // Seller posts a new delivery job
+  app.post("/api/deliveries", async (req, res) => {
+    try {
+      const {
+        sellerId, productId, productTitle, pickupLocation, pickupAddress,
+        dropoffLocation, dropoffAddress, customerName, customerPhone,
+        deliveryFee, notes,
+      } = req.body || {};
+
+      const authErr = await requireApprovedSeller(sellerId);
+      if (authErr) return res.status(authErr.status).json({ error: authErr.error });
+
+      if (!productTitle || !pickupLocation || !pickupAddress || !dropoffLocation || !dropoffAddress || !customerPhone) {
+        return res.status(400).json({ error: "Missing required delivery details." });
+      }
+
+      const id = "del_" + Math.random().toString(36).substr(2, 10);
+      const { error } = await supabase.from("delivery_requests").insert({
+        id,
+        seller_id: sellerId,
+        product_id: productId || null,
+        product_title: productTitle,
+        pickup_location: pickupLocation,
+        pickup_address: pickupAddress,
+        dropoff_location: dropoffLocation,
+        dropoff_address: dropoffAddress,
+        customer_name: customerName || null,
+        customer_phone: customerPhone,
+        delivery_fee: Number(deliveryFee) || 0,
+        notes: notes || "",
+      });
+      if (error) throw error;
+
+      const { data: fresh } = await supabase.from("delivery_requests").select("*").eq("id", id).maybeSingle();
+      res.json((await enrichDeliveries([fresh]))[0]);
+    } catch (err: any) {
+      console.error("POST /api/deliveries", err);
+      res.status(500).json({ error: "Failed to create delivery request." });
+    }
+  });
+
+  // Open job board — any approved runner can browse these
+  app.get("/api/deliveries/open", async (req, res) => {
+    try {
+      const location = typeof req.query.location === "string" ? req.query.location : null;
+      let q = supabase.from("delivery_requests").select("*").eq("status", "open").order("created_at", { ascending: false });
+      if (location) q = q.eq("pickup_location", location);
+      const { data, error } = await q;
+      if (error) throw error;
+      res.json(await enrichDeliveries(data || []));
+    } catch (err: any) {
+      console.error("GET /api/deliveries/open", err);
+      res.status(500).json({ error: "Failed to load open delivery jobs." });
+    }
+  });
+
+  // A seller's own posted requests (any status)
+  app.get("/api/deliveries/seller/:sellerId", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("delivery_requests")
+        .select("*")
+        .eq("seller_id", req.params.sellerId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      res.json(await enrichDeliveries(data || []));
+    } catch (err: any) {
+      console.error("GET /api/deliveries/seller/:sellerId", err);
+      res.status(500).json({ error: "Failed to load your delivery requests." });
+    }
+  });
+
+  // A runner's accepted/active + completed job history
+  app.get("/api/deliveries/runner/:runnerId", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("delivery_requests")
+        .select("*")
+        .eq("runner_id", req.params.runnerId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      res.json(await enrichDeliveries(data || []));
+    } catch (err: any) {
+      console.error("GET /api/deliveries/runner/:runnerId", err);
+      res.status(500).json({ error: "Failed to load your accepted deliveries." });
+    }
+  });
+
+  // Runner accepts an open job — atomic: only succeeds while still 'open',
+  // so two runners tapping the same job at once can't both win it.
+  app.post("/api/deliveries/:id/accept", async (req, res) => {
+    try {
+      const { runnerId } = req.body || {};
+      const authErr = await requireApprovedSeller(runnerId);
+      if (authErr) return res.status(authErr.status).json({ error: authErr.error });
+
+      const { data: runner } = await supabase.from("sellers").select("category").eq("id", runnerId).maybeSingle();
+      if (runner?.category !== "Services&Runners") {
+        return res.status(403).json({ error: "Only sellers registered under Services & Runners can accept delivery jobs." });
+      }
+
+      const { data: updated, error } = await supabase
+        .from("delivery_requests")
+        .update({ runner_id: runnerId, status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("id", req.params.id)
+        .eq("status", "open")
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (!updated) return res.status(409).json({ error: "This job was already accepted by another runner." });
+
+      res.json((await enrichDeliveries([updated]))[0]);
+    } catch (err: any) {
+      console.error("POST /api/deliveries/:id/accept", err);
+      res.status(500).json({ error: "Failed to accept delivery job." });
+    }
+  });
+
+  // Advance a delivery's status: accepted -> picked_up -> in_transit -> delivered
+  app.post("/api/deliveries/:id/status", async (req, res) => {
+    try {
+      const { status, actorId } = req.body || {};
+      const VALID_NEXT: Record<string, string[]> = {
+        open: ["cancelled"],
+        accepted: ["picked_up", "cancelled"],
+        picked_up: ["in_transit", "cancelled"],
+        in_transit: ["delivered", "cancelled"],
+      };
+      const { data: job } = await supabase.from("delivery_requests").select("*").eq("id", req.params.id).maybeSingle();
+      if (!job) return res.status(404).json({ error: "Delivery job not found." });
+      if (job.seller_id !== actorId && job.runner_id !== actorId) {
+        return res.status(403).json({ error: "Only the seller or assigned runner can update this job." });
+      }
+      const allowed = VALID_NEXT[job.status] || [];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({ error: `Cannot move from '${job.status}' to '${status}'.` });
+      }
+
+      const update: any = { status };
+      if (status === "picked_up") update.picked_up_at = new Date().toISOString();
+      if (status === "delivered") update.delivered_at = new Date().toISOString();
+      if (status === "cancelled") update.cancelled_at = new Date().toISOString();
+
+      const { data: updated, error } = await supabase
+        .from("delivery_requests").update(update).eq("id", req.params.id).select().maybeSingle();
+      if (error) throw error;
+
+      res.json((await enrichDeliveries([updated]))[0]);
+    } catch (err: any) {
+      console.error("POST /api/deliveries/:id/status", err);
+      res.status(500).json({ error: "Failed to update delivery status." });
+    }
+  });
+
   async function enrichCommunityAuthors<T extends { seller_id: string }>(rows: T[]) {
     const sellerIds = [...new Set(rows.map((r) => r.seller_id))];
     const { data: sellers } = sellerIds.length

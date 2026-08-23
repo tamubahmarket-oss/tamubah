@@ -12,6 +12,7 @@ import ShareModal from "./ShareModal";
 import { CategoryIcon } from "../lib/categoryIcons";
 import QuickUpdateCard from "./QuickUpdateCard";
 import PostStoryCard from "./PostStoryCard";
+import RunnerDeliveryPanel from "./RunnerDeliveryPanel";
 import tamubahBagIcon from "../assets/images/traditional_bag_logo_1784122537315.jpg";
 
 
@@ -42,7 +43,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [deleteConfirmProductId, setDeleteConfirmProductId] = useState<string | null>(null);
 
   // Sub-tab state
-  const [activeSubTab, setActiveSubTab] = useState<"products" | "receipts" | "profile">("products");
+  const [activeSubTab, setActiveSubTab] = useState<"products" | "receipts" | "profile" | "deliveries">("products");
 
   // Publish requests: only 1 product may be published (live in the market)
   // per seller at a time. Extra products need admin permission to go live.
@@ -983,6 +984,24 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
           {language === "EN" ? "Receipts" : "Resit"}
         </button>
         <button
+          id="tab-btn-deliveries"
+          onClick={() => {
+            setActiveSubTab("deliveries");
+            setError(null);
+            setSuccess(null);
+          }}
+          className={`px-5 py-3 md:px-6 md:py-3.5 font-bold text-xs md:text-sm flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+            activeSubTab === "deliveries"
+              ? "border-emerald-600 text-emerald-700 font-extrabold"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Truck className="w-4 h-4" />
+          {seller.category === "Services&Runners"
+            ? (language === "EN" ? "Delivery Jobs" : "Tugasan Penghantaran")
+            : (language === "EN" ? "Request Delivery" : "Minta Penghantaran")}
+        </button>
+        <button
           id="tab-btn-profile"
           onClick={() => {
             setActiveSubTab("profile");
@@ -1698,6 +1717,8 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
           </div>
 
         </div>
+      ) : activeSubTab === "deliveries" ? (
+        <RunnerDeliveryPanel seller={seller} language={language} />
       ) : (
         <div id="business-profile-panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           

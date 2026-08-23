@@ -120,6 +120,35 @@ export interface CommunityReply {
   sellerIsOfficial?: boolean;
 }
 
+export type DeliveryStatus = "open" | "accepted" | "picked_up" | "in_transit" | "delivered" | "cancelled";
+
+export interface DeliveryRequest {
+  id: string;
+  sellerId: string;
+  runnerId?: string;
+  productId?: string;
+  productTitle: string;
+  pickupLocation: string;
+  pickupAddress: string;
+  dropoffLocation: string;
+  dropoffAddress: string;
+  customerName?: string;
+  customerPhone: string;
+  deliveryFee: number;
+  notes?: string;
+  status: DeliveryStatus;
+  createdAt: string;
+  acceptedAt?: string;
+  pickedUpAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+  // Enriched fields (present on API responses)
+  sellerBusinessName?: string;
+  sellerPhoneNumber?: string;
+  runnerBusinessName?: string;
+  runnerPhoneNumber?: string;
+}
+
 export interface Story {
   id: string;
   sellerId: string;
