@@ -436,7 +436,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
         </div>
       </div>
 
-      {selectedCategory === "Services&Runners" && (
+      {selectedCategory === "Transport & Runners" && (
         <div id="services-runners-warning-banner" className="mb-6 bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-start gap-3.5 text-amber-900 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200">
           <div className="bg-amber-100 text-amber-800 rounded-2xl p-2 shrink-0">
             <ShieldAlert className="w-5 h-5 text-amber-600" />
@@ -858,7 +858,7 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
             <div className="lg:col-span-2 space-y-8 min-w-0">
 
               {/* Services & Runners Safety Notice */}
-              {activeSellerModal.category === "Services&Runners" && (
+              {activeSellerModal.category === "Transport & Runners" && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-2xl p-4 flex items-start gap-3 text-xs leading-relaxed shadow-sm">
                   <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>

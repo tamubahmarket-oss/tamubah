@@ -86,10 +86,13 @@ const translations: Record<Language, Record<string, string>> = {
     // Categories
     all_categories: "All Categories",
     all_districts_lbl: "All Districts",
-    "Food&Tamu": "Food & Tamu",
-    "Bundle&Fashion": "Bundle & Fashion",
-    "Gadgets&Electronics": "Gadgets & Electronics",
-    "Services&Runners": "Services & Runners",
+    "Food & Tamu": "Food & Tamu",
+    "Art & Crafts": "Art & Crafts",
+    "Bundle & Fashion": "Bundle & Fashion",
+    "Gadgets & Electronic": "Gadgets & Electronic",
+    "Home & Living": "Home & Living",
+    "Transport & Runners": "Transport & Runners",
+    "Professional Services & Freelance": "Professional Services & Freelance",
     "Others": "Others"
   },
   BM: {
@@ -175,10 +178,13 @@ const translations: Record<Language, Record<string, string>> = {
     // Categories
     all_categories: "Semua Kategori",
     all_districts_lbl: "Semua Daerah",
-    "Food&Tamu": "Makanan & Tamu",
-    "Bundle&Fashion": "Pakaian Bundel & Fesyen",
-    "Gadgets&Electronics": "Gajet & Elektronik",
-    "Services&Runners": "Perkhidmatan & Pelari",
+    "Food & Tamu": "Makanan & Tamu",
+    "Art & Crafts": "Seni & Kraf",
+    "Bundle & Fashion": "Pakaian Bundel & Fesyen",
+    "Gadgets & Electronic": "Gajet & Elektronik",
+    "Home & Living": "Rumah & Kediaman",
+    "Transport & Runners": "Pengangkutan & Penghantar",
+    "Professional Services & Freelance": "Perkhidmatan Profesional & Bebas",
     "Others": "Lain-lain"
   }
 };

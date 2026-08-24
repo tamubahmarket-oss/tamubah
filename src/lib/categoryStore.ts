@@ -1,142 +1,217 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { BUSINESS_CATEGORIES } from "../types";
-import { BADGE_COLORS } from "./categoryIcons";
 
 /**
  * Admin-editable business categories.
  *
+ * Backed by the `categories` table on the server (see /api/categories and
+ * /api/admin/categories/*) so edits made by any admin, on any device, show
+ * up everywhere immediately — not just in the browser that made the change.
+ *
  * The backend/schema stores `category` as a free-text string on each
- * seller, so there's no dedicated categories table to migrate. This store
- * keeps the *list* of selectable categories (plus a display color for any
- * category the admin adds) in localStorage, seeded from the built-in
- * BUSINESS_CATEGORIES/BADGE_COLORS. Every screen that needs the current
- * category list or color should go through this module instead of
- * importing the static constants directly, so admin edits show up
- * everywhere immediately.
+ * seller/product (no foreign key), so renaming a category server-side also
+ * updates every seller/product currently using the old name — see the PUT
+ * /api/admin/categories/:id handler.
+ *
+ * Every screen that needs the current category list or color should go
+ * through this module (via the `useCategories()` hook) instead of importing
+ * BUSINESS_CATEGORIES directly, so admin edits are reflected live.
  */
 
-const CATS_KEY = "tamubah_categories_v1";
-const COLORS_KEY = "tamubah_category_colors_v1";
-const EVENT_NAME = "tamubah:categories-changed";
+interface CategoryRecord {
+  id: string;
+  name: string;
+  color: string;
+  sortOrder: number;
+}
 
+const EVENT_NAME = "tamubah:categories-changed";
 const FALLBACK_PALETTE = [
   "#f59e0b", "#ec4899", "#3b82f6", "#14b8a6", "#22c55e",
   "#a855f7", "#ef4444", "#0ea5e9", "#eab308", "#6366f1",
 ];
 
-function readCategories(): string[] {
-  if (typeof window === "undefined") return BUSINESS_CATEGORIES;
+// In-memory cache shared across every useCategories() consumer, so we don't
+// refetch on every mount — just on the change event.
+let cache: CategoryRecord[] | null = null;
+let inFlight: Promise<CategoryRecord[]> | null = null;
+
+async function fetchCategories(): Promise<CategoryRecord[]> {
   try {
-    const raw = window.localStorage.getItem(CATS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
+    const res = await fetch("/api/categories");
+    if (!res.ok) throw new Error("failed");
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) return data;
   } catch (e) {
-    console.error("Failed to read categories from storage", e);
+    console.error("Failed to fetch categories from server", e);
   }
-  return [...BUSINESS_CATEGORIES];
+  // Fallback so the UI never renders empty (e.g. offline, or table not migrated yet)
+  return BUSINESS_CATEGORIES.map((name, i) => ({
+    id: `fallback_${i}`,
+    name,
+    color: FALLBACK_PALETTE[i % FALLBACK_PALETTE.length],
+    sortOrder: i,
+  }));
 }
 
-function readColors(): Record<string, string> {
-  if (typeof window === "undefined") return { ...BADGE_COLORS };
-  try {
-    const raw = window.localStorage.getItem(COLORS_KEY);
-    const stored = raw ? JSON.parse(raw) : {};
-    return { ...BADGE_COLORS, ...stored };
-  } catch (e) {
-    console.error("Failed to read category colors from storage", e);
-    return { ...BADGE_COLORS };
+function loadCategories(): Promise<CategoryRecord[]> {
+  if (cache) return Promise.resolve(cache);
+  if (inFlight) return inFlight;
+  inFlight = fetchCategories().then((data) => {
+    cache = data;
+    inFlight = null;
+    return data;
+  });
+  return inFlight;
+}
+
+function notifyChanged() {
+  cache = null; // force a refetch next time anything asks
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(EVENT_NAME));
   }
 }
 
-function persist(categories: string[], colors: Record<string, string>) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(CATS_KEY, JSON.stringify(categories));
-  window.localStorage.setItem(COLORS_KEY, JSON.stringify(colors));
-  window.dispatchEvent(new CustomEvent(EVENT_NAME));
-}
-
-function nextPaletteColor(colors: Record<string, string>): string {
-  const used = new Set(Object.values(colors));
-  const free = FALLBACK_PALETTE.find((c) => !used.has(c));
-  return free || FALLBACK_PALETTE[Object.keys(colors).length % FALLBACK_PALETTE.length];
-}
-
-export function getCategories(): string[] {
-  return readCategories();
-}
-
-export function getCategoryColorMap(): Record<string, string> {
-  return readColors();
-}
-
-export function addCategory(name: string, color?: string): void {
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  const categories = readCategories();
-  if (categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return;
-  const colors = readColors();
-  const updatedCategories = [...categories, trimmed];
-  const updatedColors = { ...colors, [trimmed]: color || nextPaletteColor(colors) };
-  persist(updatedCategories, updatedColors);
-}
-
-export function renameCategory(oldName: string, newName: string): void {
-  const trimmed = newName.trim();
-  if (!trimmed || trimmed === oldName) return;
-  const categories = readCategories();
-  const colors = readColors();
-  const updatedCategories = categories.map((c) => (c === oldName ? trimmed : c));
-  const updatedColors = { ...colors };
-  if (updatedColors[oldName]) {
-    updatedColors[trimmed] = updatedColors[oldName];
-    delete updatedColors[oldName];
-  }
-  persist(updatedCategories, updatedColors);
-}
-
-export function setCategoryColor(name: string, color: string): void {
-  const colors = readColors();
-  persist(readCategories(), { ...colors, [name]: color });
-}
-
-export function removeCategory(name: string): void {
-  const categories = readCategories().filter((c) => c !== name);
-  const colors = readColors();
-  delete colors[name];
-  persist(categories, colors);
-}
-
-export function resetCategories(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(CATS_KEY);
-  window.localStorage.removeItem(COLORS_KEY);
-  window.dispatchEvent(new CustomEvent(EVENT_NAME));
-}
-
-/** React hook: live list of categories + colors, updates whenever admin edits them (any tab). */
+/** React hook: live list of categories + colors, updates whenever admin edits them (any tab, any device). */
 export function useCategories() {
-  const [categories, setCategories] = useState<string[]>(() => readCategories());
-  const [colors, setColors] = useState<Record<string, string>>(() => readColors());
+  const [records, setRecords] = useState<CategoryRecord[]>(() =>
+    BUSINESS_CATEGORIES.map((name, i) => ({ id: `pending_${i}`, name, color: FALLBACK_PALETTE[i % FALLBACK_PALETTE.length], sortOrder: i }))
+  );
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const refresh = () => {
-      setCategories(readCategories());
-      setColors(readColors());
-    };
-    window.addEventListener(EVENT_NAME, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(EVENT_NAME, refresh);
-      window.removeEventListener("storage", refresh);
-    };
+  const refresh = useCallback(() => {
+    loadCategories().then((data) => {
+      setRecords(data);
+      setLoading(false);
+    });
   }, []);
 
-  return { categories, colors };
+  useEffect(() => {
+    refresh();
+    window.addEventListener(EVENT_NAME, refresh);
+    return () => window.removeEventListener(EVENT_NAME, refresh);
+  }, [refresh]);
+
+  const categories = records.map((r) => r.name);
+  const colors = Object.fromEntries(records.map((r) => [r.name, r.color]));
+
+  return { categories, colors, records, loading };
+}
+
+/** Non-hook accessor for the current (possibly cached) category name list. */
+export async function getCategories(): Promise<string[]> {
+  const data = await loadCategories();
+  return data.map((r) => r.name);
+}
+
+export async function getCategoryColorMap(): Promise<Record<string, string>> {
+  const data = await loadCategories();
+  return Object.fromEntries(data.map((r) => [r.name, r.color]));
+}
+
+export async function addCategory(name: string, color?: string): Promise<{ error?: string }> {
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Name is required." };
+  try {
+    const res = await fetch("/api/admin/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed, color }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error || "Failed to add category." };
+    notifyChanged();
+    return {};
+  } catch {
+    return { error: "Network error." };
+  }
+}
+
+async function findIdByName(name: string): Promise<string | null> {
+  const data = await loadCategories();
+  return data.find((r) => r.name === name)?.id || null;
+}
+
+export async function renameCategory(oldName: string, newName: string): Promise<{ error?: string }> {
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === oldName) return {};
+  const id = await findIdByName(oldName);
+  if (!id) return { error: "Category not found." };
+  try {
+    const res = await fetch(`/api/admin/categories/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error || "Failed to rename category." };
+    notifyChanged();
+    return {};
+  } catch {
+    return { error: "Network error." };
+  }
+}
+
+export async function setCategoryColor(name: string, color: string): Promise<{ error?: string }> {
+  const id = await findIdByName(name);
+  if (!id) return { error: "Category not found." };
+  try {
+    const res = await fetch(`/api/admin/categories/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      return { error: data.error || "Failed to update color." };
+    }
+    notifyChanged();
+    return {};
+  } catch {
+    return { error: "Network error." };
+  }
+}
+
+export async function removeCategory(name: string): Promise<{ error?: string }> {
+  const id = await findIdByName(name);
+  if (!id) return { error: "Category not found." };
+  try {
+    const res = await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      return { error: data.error || "Failed to delete category." };
+    }
+    notifyChanged();
+    return {};
+  } catch {
+    return { error: "Network error." };
+  }
+}
+
+/** Reorders categories to match the given array of names (admin drag/reorder UI). */
+export async function reorderCategories(orderedNames: string[]): Promise<{ error?: string }> {
+  const data = await loadCategories();
+  const byName = new Map(data.map((r) => [r.name, r.id]));
+  const orderedIds = orderedNames.map((n) => byName.get(n)).filter(Boolean) as string[];
+  if (orderedIds.length === 0) return { error: "Nothing to reorder." };
+  try {
+    const res = await fetch("/api/admin/categories/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds }),
+    });
+    if (!res.ok) {
+      const data2 = await res.json();
+      return { error: data2.error || "Failed to reorder categories." };
+    }
+    notifyChanged();
+    return {};
+  } catch {
+    return { error: "Network error." };
+  }
 }
 
 export function getCategoryColorDynamic(category: string): string {
-  const colors = readColors();
-  return colors[category] || FALLBACK_PALETTE[0];
+  const found = cache?.find((r) => r.name === category);
+  return found?.color || FALLBACK_PALETTE[0];
 }

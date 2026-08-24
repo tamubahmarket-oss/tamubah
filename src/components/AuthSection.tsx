@@ -4,6 +4,7 @@ import {
   ShieldCheck, Loader2, Check, X, Search
 } from "lucide-react";
 import { SABAH_LOCATIONS, BUSINESS_CATEGORIES, Seller } from "../types";
+import { useCategories } from "../lib/categoryStore";
 import { validateSSM } from "../utils";
 import { useLanguage } from "../lib/LanguageContext";
 import TermsModal from "./TermsModal";
@@ -28,7 +29,8 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
     setMode(initialMode);
   }, [initialMode]);
 
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
+  const { categories: liveCategories } = useCategories();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -524,16 +526,9 @@ export default function AuthSection({ onAuthSuccess, onClose, initialMode = "log
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
               >
-                {BUSINESS_CATEGORIES.map((cat) => (
+                {liveCategories.map((cat) => (
                   <option key={cat} value={cat}>
-                    {language === "EN" 
-                      ? cat 
-                      : (cat === "Food & Beverage" ? "Makanan & Minuman" 
-                         : cat === "Handicrafts" ? "Kraf Tangan" 
-                         : cat === "Agriculture" ? "Pertanian" 
-                         : cat === "Apparel & Accessories" ? "Pakaian & Aksesori" 
-                         : cat === "Health & Beauty" ? "Kesihatan & Kecantikan" 
-                         : cat)}
+                    {language === "EN" ? cat : t(cat)}
                   </option>
                 ))}
               </select>

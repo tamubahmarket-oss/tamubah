@@ -11,12 +11,13 @@ type CategorySvgIcon = React.FC<{ className?: string }>;
 
 export const BADGE_COLORS: Record<string, string> = {
   All: "#64748b",
-  "Food&Tamu": "#f59e0b",
-  "Bundle&Fashion": "#ec4899",
-  "Gadgets&Electronics": "#3b82f6",
-  "Cars&Bikes": "#14b8a6",
-  "Homes&Living": "#22c55e",
-  "Services&Runners": "#a855f7",
+  "Food & Tamu": "#f59e0b",
+  "Art & Crafts": "#ec4899",
+  "Bundle & Fashion": "#a855f7",
+  "Gadgets & Electronic": "#3b82f6",
+  "Home & Living": "#22c55e",
+  "Transport & Runners": "#14b8a6",
+  "Professional Services & Freelance": "#0ea5e9",
   Others: "#64748b",
 };
 
@@ -82,7 +83,7 @@ const AllIcon: CategorySvgIcon = ({ className }) => (
 );
 
 const FoodIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Food&Tamu"]} className={className}>
+  <Badge color={BADGE_COLORS["Food & Tamu"]} className={className}>
     <path d="M9 17 A7 5 0 0 0 23 17" {...glyphProps} />
     <line x1="8" y1="17" x2="24" y2="17" {...glyphProps} />
     <path d="M13 9 q1.5 -2.5 0 -4" {...glyphProps} />
@@ -90,8 +91,17 @@ const FoodIcon: CategorySvgIcon = ({ className }) => (
   </Badge>
 );
 
+const ArtCraftsIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Art & Crafts"]} className={className}>
+    <path d="M11 22 a6.5 6.5 0 1 1 10 -5.5 c0 2 -1.5 2.5 -3 2.5 h-1.2 a1.6 1.6 0 0 0 -1 2.8 a1.6 1.6 0 0 1 -1 2.8 a6.5 6.5 0 0 1 -3.8 -2.6z" {...glyphProps} />
+    <circle cx="12" cy="14" r="0.9" fill="white" stroke="none" />
+    <circle cx="16" cy="11" r="0.9" fill="white" stroke="none" />
+    <circle cx="20" cy="14" r="0.9" fill="white" stroke="none" />
+  </Badge>
+);
+
 const FashionIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Bundle&Fashion"]} className={className}>
+  <Badge color={BADGE_COLORS["Bundle & Fashion"]} className={className}>
     <path d="M16 8 v3" {...glyphProps} />
     <path d="M16 11 l-8 6 a2 2 0 0 0 1.6 2.4 l6.4 -2.4 l6.4 2.4 a2 2 0 0 0 1.6 -2.4 z" {...glyphProps} />
     <line x1="9" y1="19.5" x2="23" y2="19.5" {...glyphProps} />
@@ -99,14 +109,14 @@ const FashionIcon: CategorySvgIcon = ({ className }) => (
 );
 
 const GadgetsIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Gadgets&Electronics"]} className={className}>
+  <Badge color={BADGE_COLORS["Gadgets & Electronic"]} className={className}>
     <rect x="12" y="7" width="8" height="18" rx="1.6" {...glyphProps} />
     <circle cx="16" cy="21.5" r="0.9" fill="white" stroke="none" />
   </Badge>
 );
 
-const CarsIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Cars&Bikes"]} className={className}>
+const TransportIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Transport & Runners"]} className={className}>
     <path d="M7 19 l2 -6 a2 2 0 0 1 2 -1.4 h10 a2 2 0 0 1 2 1.4 l2 6" {...glyphProps} />
     <line x1="7" y1="19" x2="25" y2="19" {...glyphProps} />
     <circle cx="11" cy="21" r="1.6" stroke="white" strokeWidth={1.4} fill="none" />
@@ -115,18 +125,18 @@ const CarsIcon: CategorySvgIcon = ({ className }) => (
 );
 
 const HomesIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Homes&Living"]} className={className}>
+  <Badge color={BADGE_COLORS["Home & Living"]} className={className}>
     <path d="M8 15 l8 -7 l8 7" {...glyphProps} />
     <path d="M10 14 v9 h12 v-9" {...glyphProps} />
     <rect x="14" y="18" width="4" height="5" rx="0.6" stroke="white" strokeWidth={1.3} fill="none" />
   </Badge>
 );
 
-const ServicesIcon: CategorySvgIcon = ({ className }) => (
-  <Badge color={BADGE_COLORS["Services&Runners"]} className={className}>
-    <circle cx="10" cy="22" r="2.6" stroke="white" strokeWidth={1.6} fill="none" />
-    <circle cx="22" cy="10" r="2.6" stroke="white" strokeWidth={1.6} fill="none" />
-    <line x1="11.8" y1="20.2" x2="20.2" y2="11.8" stroke="white" strokeWidth={2} strokeLinecap="round" />
+const ProfessionalServicesIcon: CategorySvgIcon = ({ className }) => (
+  <Badge color={BADGE_COLORS["Professional Services & Freelance"]} className={className}>
+    <rect x="9" y="13" width="14" height="10" rx="1.6" {...glyphProps} />
+    <path d="M13 13 v-2.4 a1.6 1.6 0 0 1 1.6 -1.6 h2.8 a1.6 1.6 0 0 1 1.6 1.6 v2.4" {...glyphProps} />
+    <line x1="9" y1="18" x2="23" y2="18" {...glyphProps} />
   </Badge>
 );
 
@@ -140,12 +150,13 @@ const OthersIcon: CategorySvgIcon = ({ className }) => (
 
 export const CATEGORY_ICONS: Record<string, CategorySvgIcon> = {
   All: AllIcon,
-  "Food&Tamu": FoodIcon,
-  "Bundle&Fashion": FashionIcon,
-  "Gadgets&Electronics": GadgetsIcon,
-  "Cars&Bikes": CarsIcon,
-  "Homes&Living": HomesIcon,
-  "Services&Runners": ServicesIcon,
+  "Food & Tamu": FoodIcon,
+  "Art & Crafts": ArtCraftsIcon,
+  "Bundle & Fashion": FashionIcon,
+  "Gadgets & Electronic": GadgetsIcon,
+  "Home & Living": HomesIcon,
+  "Transport & Runners": TransportIcon,
+  "Professional Services & Freelance": ProfessionalServicesIcon,
   Others: OthersIcon,
 };
 

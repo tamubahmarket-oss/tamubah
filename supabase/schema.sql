@@ -169,6 +169,49 @@ create index if not exists idx_receipts_created_at on receipts(created_at desc);
 -- order to a customer); any approved Services&Runners seller can browse
 -- open jobs and accept one, then move it through pickup -> delivery.
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- categories — admin-editable, orderable list of marketplace categories.
+-- Sellers/products still store `category` as free text (matching one of
+-- these names) rather than a foreign key, to avoid a bigger migration —
+-- this table is purely the admin-managed source of truth for the list
+-- itself (name, display color, sort order).
+-- ---------------------------------------------------------------------------
+create table if not exists categories (
+  id          text primary key,
+  name        text not null unique,
+  color       text not null default '#6366f1',
+  sort_order  integer not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_categories_sort_order on categories(sort_order);
+
+insert into categories (id, name, color, sort_order) values
+  ('cat_food_tamu',      'Food & Tamu',                      '#f59e0b', 0),
+  ('cat_art_crafts',     'Art & Crafts',                     '#ec4899', 1),
+  ('cat_bundle_fashion', 'Bundle & Fashion',                 '#a855f7', 2),
+  ('cat_gadgets',        'Gadgets & Electronic',              '#3b82f6', 3),
+  ('cat_home_living',    'Home & Living',                    '#22c55e', 4),
+  ('cat_transport',      'Transport & Runners',              '#14b8a6', 5),
+  ('cat_prof_services',  'Professional Services & Freelance', '#6366f1', 6),
+  ('cat_others',         'Others',                           '#64748b', 7)
+on conflict (name) do nothing;
+
+-- Migrate existing free-text category values on sellers/products to the
+-- renamed/merged category names above (old "Cars&Bikes" and
+-- "Services&Runners" both fold into the new "Transport & Runners").
+update sellers set category = 'Food & Tamu' where category = 'Food&Tamu';
+update sellers set category = 'Bundle & Fashion' where category = 'Bundle&Fashion';
+update sellers set category = 'Gadgets & Electronic' where category = 'Gadgets&Electronics';
+update sellers set category = 'Home & Living' where category = 'Homes&Living';
+update sellers set category = 'Transport & Runners' where category in ('Cars&Bikes', 'Services&Runners');
+
+update products set category = 'Food & Tamu' where category = 'Food&Tamu';
+update products set category = 'Bundle & Fashion' where category = 'Bundle&Fashion';
+update products set category = 'Gadgets & Electronic' where category = 'Gadgets&Electronics';
+update products set category = 'Home & Living' where category = 'Homes&Living';
+update products set category = 'Transport & Runners' where category in ('Cars&Bikes', 'Services&Runners');
+
 create table if not exists delivery_requests (
   id                text primary key,
   seller_id         text not null references sellers(id) on delete cascade,
@@ -389,6 +432,7 @@ alter table publish_requests enable row level security;
 alter table receipts        enable row level security;
 alter table stories         enable row level security;
 alter table story_views     enable row level security;
+alter table categories       enable row level security;
 alter table delivery_requests enable row level security;
 alter table community_topics  enable row level security;
 alter table community_replies enable row level security;

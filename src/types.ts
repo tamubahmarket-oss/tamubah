@@ -228,11 +228,12 @@ export const SABAH_LOCATIONS = [
 ];
 
 export const BUSINESS_CATEGORIES = [
-  "Food&Tamu",
-  "Bundle&Fashion",
-  "Gadgets&Electronics",
-  "Cars&Bikes",
-  "Homes&Living",
-  "Services&Runners",
+  "Food & Tamu",
+  "Art & Crafts",
+  "Bundle & Fashion",
+  "Gadgets & Electronic",
+  "Home & Living",
+  "Transport & Runners",
+  "Professional Services & Freelance",
   "Others"
 ];

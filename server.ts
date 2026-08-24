@@ -742,41 +742,48 @@ function detectBossKuLocation(lower: string): string | null {
 
 function detectBossKuCategory(lower: string): string | null {
   const map: Record<string, string> = {
-    "food&tamu": "Food&Tamu",
-    "makan": "Food&Tamu",
-    "makanan": "Food&Tamu",
-    "food": "Food&Tamu",
-    "kuih": "Food&Tamu",
-    "minuman": "Food&Tamu",
-    "drink": "Food&Tamu",
-    "bundle&fashion": "Bundle&Fashion",
-    "baju": "Bundle&Fashion",
-    "fashion": "Bundle&Fashion",
-    "pakaian": "Bundle&Fashion",
-    "bundle": "Bundle&Fashion",
-    "gadgets&electronics": "Gadgets&Electronics",
-    "gadget": "Gadgets&Electronics",
-    "phone": "Gadgets&Electronics",
-    "telefon": "Gadgets&Electronics",
-    "electronic": "Gadgets&Electronics",
-    "elektronik": "Gadgets&Electronics",
-    "cars&bikes": "Cars&Bikes",
-    "kereta": "Cars&Bikes",
-    "motor": "Cars&Bikes",
-    "basikal": "Cars&Bikes",
-    "bike": "Cars&Bikes",
-    "car": "Cars&Bikes",
-    "homes&living": "Homes&Living",
-    "rumah": "Homes&Living",
-    "perabot": "Homes&Living",
-    "furniture": "Homes&Living",
-    "home": "Homes&Living",
-    "services&runners": "Services&Runners",
-    "runner": "Services&Runners",
-    "servis": "Services&Runners",
-    "service": "Services&Runners",
-    "hantar": "Services&Runners",
-    "delivery": "Services&Runners",
+    "food & tamu": "Food & Tamu",
+    "makan": "Food & Tamu",
+    "makanan": "Food & Tamu",
+    "food": "Food & Tamu",
+    "kuih": "Food & Tamu",
+    "minuman": "Food & Tamu",
+    "drink": "Food & Tamu",
+    "art & crafts": "Art & Crafts",
+    "kraf": "Art & Crafts",
+    "seni": "Art & Crafts",
+    "craft": "Art & Crafts",
+    "handmade": "Art & Crafts",
+    "buatan tangan": "Art & Crafts",
+    "bundle & fashion": "Bundle & Fashion",
+    "baju": "Bundle & Fashion",
+    "fashion": "Bundle & Fashion",
+    "pakaian": "Bundle & Fashion",
+    "bundle": "Bundle & Fashion",
+    "gadgets & electronic": "Gadgets & Electronic",
+    "gadget": "Gadgets & Electronic",
+    "phone": "Gadgets & Electronic",
+    "telefon": "Gadgets & Electronic",
+    "electronic": "Gadgets & Electronic",
+    "elektronik": "Gadgets & Electronic",
+    "home & living": "Home & Living",
+    "rumah": "Home & Living",
+    "perabot": "Home & Living",
+    "furniture": "Home & Living",
+    "home": "Home & Living",
+    "transport & runners": "Transport & Runners",
+    "kereta": "Transport & Runners",
+    "motor": "Transport & Runners",
+    "basikal": "Transport & Runners",
+    "bike": "Transport & Runners",
+    "car": "Transport & Runners",
+    "runner": "Transport & Runners",
+    "hantar": "Transport & Runners",
+    "delivery": "Transport & Runners",
+    "professional services & freelance": "Professional Services & Freelance",
+    "freelance": "Professional Services & Freelance",
+    "servis": "Professional Services & Freelance",
+    "service": "Professional Services & Freelance",
   };
   for (const key of Object.keys(map)) {
     if (lower.includes(key)) return map[key];
@@ -1204,7 +1211,7 @@ async function startServer() {
 
   // ---------------------------------------------------------------------
   // DELIVERY REQUESTS — sellers post a delivery job; approved
-  // Services&Runners sellers browse the open job board, accept one, and
+  // Transport & Runners sellers browse the open job board, accept one, and
   // move it through pickup -> in transit -> delivered.
   // ---------------------------------------------------------------------
 
@@ -1345,8 +1352,8 @@ async function startServer() {
       if (authErr) return res.status(authErr.status).json({ error: authErr.error });
 
       const { data: runner } = await supabase.from("sellers").select("category").eq("id", runnerId).maybeSingle();
-      if (runner?.category !== "Services&Runners") {
-        return res.status(403).json({ error: "Only sellers registered under Services & Runners can accept delivery jobs." });
+      if (runner?.category !== "Transport & Runners") {
+        return res.status(403).json({ error: "Only sellers registered under Transport & Runners can accept delivery jobs." });
       }
 
       const { data: updated, error } = await supabase
@@ -1696,6 +1703,101 @@ async function startServer() {
     } catch (err: any) {
       console.error("POST /api/bossku/chat", err);
       res.status(500).json({ error: "Bossku is having trouble right now, try again bah." });
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // CATEGORIES — admin-editable, orderable list of marketplace categories.
+  // ---------------------------------------------------------------------
+
+  app.get("/api/categories", async (req, res) => {
+    try {
+      const { data, error } = await supabase.from("categories").select("*").order("sort_order", { ascending: true });
+      if (error) throw error;
+      res.json((data || []).map((c: any) => ({ id: c.id, name: c.name, color: c.color, sortOrder: c.sort_order })));
+    } catch (err: any) {
+      console.error("GET /api/categories", err);
+      res.status(500).json({ error: "Failed to load categories." });
+    }
+  });
+
+  app.post("/api/admin/categories", requireAdminAuth, async (req, res) => {
+    try {
+      const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const color = typeof req.body?.color === "string" ? req.body.color : "#6366f1";
+      if (!name) return res.status(400).json({ error: "Category name is required." });
+
+      const { data: maxRow } = await supabase.from("categories").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle();
+      const nextOrder = (maxRow?.sort_order ?? -1) + 1;
+      const id = "cat_" + Math.random().toString(36).substr(2, 10);
+
+      const { error } = await supabase.from("categories").insert({ id, name, color, sort_order: nextOrder });
+      if (error) {
+        if ((error as any).code === "23505") return res.status(409).json({ error: "A category with this name already exists." });
+        throw error;
+      }
+      res.json({ id, name, color, sortOrder: nextOrder });
+    } catch (err: any) {
+      console.error("POST /api/admin/categories", err);
+      res.status(500).json({ error: "Failed to add category." });
+    }
+  });
+
+  app.put("/api/admin/categories/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const update: any = {};
+      if (typeof req.body?.name === "string" && req.body.name.trim()) update.name = req.body.name.trim();
+      if (typeof req.body?.color === "string") update.color = req.body.color;
+      if (Object.keys(update).length === 0) return res.status(400).json({ error: "Nothing to update." });
+
+      const { data: existing } = await supabase.from("categories").select("name").eq("id", req.params.id).maybeSingle();
+      if (!existing) return res.status(404).json({ error: "Category not found." });
+
+      const { error } = await supabase.from("categories").update(update).eq("id", req.params.id);
+      if (error) {
+        if ((error as any).code === "23505") return res.status(409).json({ error: "A category with this name already exists." });
+        throw error;
+      }
+
+      // Keep existing sellers/products in sync if the category was renamed.
+      if (update.name && update.name !== existing.name) {
+        await supabase.from("sellers").update({ category: update.name }).eq("category", existing.name);
+        await supabase.from("products").update({ category: update.name }).eq("category", existing.name);
+      }
+
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("PUT /api/admin/categories/:id", err);
+      res.status(500).json({ error: "Failed to update category." });
+    }
+  });
+
+  app.delete("/api/admin/categories/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const { error } = await supabase.from("categories").delete().eq("id", req.params.id);
+      if (error) throw error;
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("DELETE /api/admin/categories/:id", err);
+      res.status(500).json({ error: "Failed to delete category." });
+    }
+  });
+
+  // Bulk reorder — body: { orderedIds: string[] } in the desired display order
+  app.post("/api/admin/categories/reorder", requireAdminAuth, async (req, res) => {
+    try {
+      const orderedIds = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : [];
+      if (orderedIds.length === 0) return res.status(400).json({ error: "orderedIds is required." });
+
+      await Promise.all(
+        orderedIds.map((id: string, index: number) =>
+          supabase.from("categories").update({ sort_order: index }).eq("id", id)
+        )
+      );
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("POST /api/admin/categories/reorder", err);
+      res.status(500).json({ error: "Failed to reorder categories." });
     }
   });
 

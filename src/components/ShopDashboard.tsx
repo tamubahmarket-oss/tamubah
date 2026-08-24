@@ -6,6 +6,7 @@ import {
   Receipt as ReceiptIcon, Minus, Truck, Share2, Lock, Pencil, X
 } from "lucide-react";
 import { Seller, Product, BUSINESS_CATEGORIES, SABAH_LOCATIONS } from "../types";
+import { useCategories } from "../lib/categoryStore";
 import { compressAndResizeImage } from "../utils";
 import { useLanguage } from "../lib/LanguageContext";
 import ShareModal from "./ShareModal";
@@ -35,6 +36,7 @@ const PROFILE_PRESETS = [
 
 export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpdateSeller }: ShopDashboardProps) {
   const { language } = useLanguage();
+  const { categories: liveCategories } = useCategories();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -997,7 +999,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
           }`}
         >
           <Truck className="w-4 h-4" />
-          {seller.category === "Services&Runners"
+          {seller.category === "Transport & Runners"
             ? (language === "EN" ? "Delivery Jobs" : "Tugasan Penghantaran")
             : (language === "EN" ? "Request Delivery" : "Minta Penghantaran")}
         </button>
@@ -1077,7 +1079,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                   Category <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {BUSINESS_CATEGORIES.map((cat) => (
+                  {liveCategories.map((cat) => (
                     <button
                       key={cat}
                       type="button"
@@ -1750,7 +1752,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                   {profileBusinessName || "My Homemade Business"}
                 </h3>
                 <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full mt-1.5 inline-block font-medium">
-                  {profileCategory || "Food&Tamu"}
+                  {profileCategory || "Food & Tamu"}
                 </span>
 
                 {profileEstablishedYear && (
@@ -2024,7 +2026,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                       Category <span className="text-red-500">*</span>
                     </label>
                     <div className="grid grid-cols-3 gap-2">
-                      {BUSINESS_CATEGORIES.map((cat) => (
+                      {liveCategories.map((cat) => (
                         <button
                           key={cat}
                           type="button"
@@ -2248,7 +2250,7 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                   Category <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {BUSINESS_CATEGORIES.map((cat) => (
+                  {liveCategories.map((cat) => (
                     <button
                       key={cat}
                       type="button"

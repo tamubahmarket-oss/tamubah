@@ -398,7 +398,7 @@ export default function MarketGrid({
         )}
       </div>
 
-      {selectedCategory === "Services&Runners" && (
+      {selectedCategory === "Transport & Runners" && (
         <div id="services-runners-warning-banner" className="mb-6 bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-start gap-3.5 text-amber-900 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200">
           <div className="bg-amber-100 text-amber-800 rounded-2xl p-2 shrink-0">
             <ShieldAlert className="w-5 h-5 text-amber-600" />

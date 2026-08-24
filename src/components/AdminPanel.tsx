@@ -7,11 +7,11 @@ import {
   User, MoreVertical, ShieldAlert,
   Trash2, Wallet, Send, Mail, Tag, Plus, Megaphone, Pencil, Save, Phone, Copy, MapPin, Activity,
   GripVertical, LayoutGrid, List, EyeOff,
-  Sparkles, MessageSquareText
+  Sparkles, MessageSquareText, ChevronUp, ChevronDown
 } from "lucide-react";
 import { Seller, Product } from "../types";
 import { CategoryIcon } from "../lib/categoryIcons";
-import { useCategories, addCategory, renameCategory, removeCategory, setCategoryColor } from "../lib/categoryStore";
+import { useCategories, addCategory, renameCategory, removeCategory, setCategoryColor, reorderCategories } from "../lib/categoryStore";
 import { getAnnouncement, setAnnouncement } from "../lib/announcementStore";
 
 // --- small chart helpers (no external chart library — kept dependency-free) ---
@@ -137,6 +137,8 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState("");
+  const [categoryActionError, setCategoryActionError] = useState<string | null>(null);
+  const [reorderingCategory, setReorderingCategory] = useState<string | null>(null);
   const [announcementDraft, setAnnouncementDraft] = useState<string>(() => getAnnouncement()?.message || "");
   const [announcementSavedMsg, setAnnouncementSavedMsg] = useState("");
   const [contactCopyMsg, setContactCopyMsg] = useState("");
@@ -2934,48 +2936,105 @@ spec:
                   </div>
                   <div className="p-5 space-y-4">
                     <p className="text-[11px] text-[#9aa0a6] leading-relaxed">
-                      Add, rename, recolor, or remove the categories sellers can pick from when they register or edit their shop.
-                      Changes apply instantly across the market, seller directory, and filters for everyone browsing the site.
+                      Add, rename, recolor, reorder, or remove the categories sellers can pick from when they register or edit their shop.
+                      The order below is the order shown everywhere on the site — use the arrows to rearrange. Changes apply instantly
+                      across the market, seller directory, and filters for everyone browsing the site.
                     </p>
 
-                    <div className="flex flex-wrap gap-2">
-                      {adminCategories.map((cat) => {
+                    {categoryActionError && (
+                      <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs rounded-lg px-3 py-2">
+                        {categoryActionError}
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      {adminCategories.map((cat, idx) => {
                         const color = adminCategoryColors[cat] || "#64748b";
                         const isEditing = editingCategory === cat;
+                        const isBusy = reorderingCategory === cat;
                         return (
                           <div
                             key={cat}
-                            className="flex items-center gap-2 bg-[#2a2b2f] border border-[#3c4043] rounded-xl pl-2 pr-1.5 py-1.5"
+                            className="flex items-center gap-2.5 bg-[#2a2b2f] border border-[#3c4043] rounded-xl pl-2 pr-2.5 py-2"
                           >
+                            <span className="text-[10px] font-mono font-bold text-[#5f6368] w-5 text-center shrink-0">
+                              {idx + 1}
+                            </span>
+
+                            <div className="flex flex-col shrink-0">
+                              <button
+                                disabled={idx === 0 || isBusy}
+                                onClick={async () => {
+                                  setCategoryActionError(null);
+                                  setReorderingCategory(cat);
+                                  const next = [...adminCategories];
+                                  [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                                  const result = await reorderCategories(next);
+                                  if (result.error) setCategoryActionError(result.error);
+                                  setReorderingCategory(null);
+                                }}
+                                className="text-[#9aa0a6] hover:text-[#e8eaed] disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                title="Move up"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                disabled={idx === adminCategories.length - 1 || isBusy}
+                                onClick={async () => {
+                                  setCategoryActionError(null);
+                                  setReorderingCategory(cat);
+                                  const next = [...adminCategories];
+                                  [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                                  const result = await reorderCategories(next);
+                                  if (result.error) setCategoryActionError(result.error);
+                                  setReorderingCategory(null);
+                                }}
+                                className="text-[#9aa0a6] hover:text-[#e8eaed] disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                title="Move down"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
                             <input
                               type="color"
                               value={color}
-                              onChange={(e) => setCategoryColor(cat, e.target.value)}
-                              className="w-5 h-5 rounded cursor-pointer bg-transparent border border-[#3c4043]"
+                              onChange={async (e) => {
+                                const result = await setCategoryColor(cat, e.target.value);
+                                if (result.error) setCategoryActionError(result.error);
+                              }}
+                              className="w-5 h-5 rounded cursor-pointer bg-transparent border border-[#3c4043] shrink-0"
                               title="Category color"
                             />
+
                             {isEditing ? (
                               <input
                                 autoFocus
                                 value={editingCategoryName}
                                 onChange={(e) => setEditingCategoryName(e.target.value)}
-                                onKeyDown={(e) => {
+                                onKeyDown={async (e) => {
                                   if (e.key === "Enter") {
-                                    renameCategory(cat, editingCategoryName);
+                                    const result = await renameCategory(cat, editingCategoryName);
+                                    if (result.error) setCategoryActionError(result.error);
                                     setEditingCategory(null);
                                   } else if (e.key === "Escape") {
                                     setEditingCategory(null);
                                   }
                                 }}
-                                className="bg-[#1a1b1e] border border-[#5f6368] rounded px-2 py-1 text-xs text-[#e8eaed] w-32 focus:outline-none focus:border-[#8ab4f8]"
+                                className="bg-[#1a1b1e] border border-[#5f6368] rounded px-2 py-1 text-xs text-[#e8eaed] flex-1 min-w-0 focus:outline-none focus:border-[#8ab4f8]"
                               />
                             ) : (
-                              <span className="text-xs font-semibold text-[#e8eaed]">{cat}</span>
+                              <span className="text-xs font-semibold text-[#e8eaed] flex-1 min-w-0 truncate">{cat}</span>
                             )}
+
                             {isEditing ? (
                               <button
-                                onClick={() => { renameCategory(cat, editingCategoryName); setEditingCategory(null); }}
-                                className="text-emerald-400 hover:text-emerald-300 cursor-pointer p-1"
+                                onClick={async () => {
+                                  const result = await renameCategory(cat, editingCategoryName);
+                                  if (result.error) setCategoryActionError(result.error);
+                                  setEditingCategory(null);
+                                }}
+                                className="text-emerald-400 hover:text-emerald-300 cursor-pointer p-1 shrink-0"
                                 title="Save"
                               >
                                 <Save className="w-3.5 h-3.5" />
@@ -2983,19 +3042,20 @@ spec:
                             ) : (
                               <button
                                 onClick={() => { setEditingCategory(cat); setEditingCategoryName(cat); }}
-                                className="text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer p-1"
+                                className="text-[#9aa0a6] hover:text-[#e8eaed] cursor-pointer p-1 shrink-0"
                                 title="Rename"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                             )}
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (window.confirm(`Remove category "${cat}"? Sellers already using it will keep it on their profile until changed.`)) {
-                                  removeCategory(cat);
+                                  const result = await removeCategory(cat);
+                                  if (result.error) setCategoryActionError(result.error);
                                 }
                               }}
-                              className="text-[#9aa0a6] hover:text-red-400 cursor-pointer p-1"
+                              className="text-[#9aa0a6] hover:text-red-400 cursor-pointer p-1 shrink-0"
                               title="Remove"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -3010,9 +3070,10 @@ spec:
                         type="text"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
-                        onKeyDown={(e) => {
+                        onKeyDown={async (e) => {
                           if (e.key === "Enter" && newCategoryName.trim()) {
-                            addCategory(newCategoryName);
+                            const result = await addCategory(newCategoryName);
+                            if (result.error) setCategoryActionError(result.error);
                             setNewCategoryName("");
                           }
                         }}
@@ -3020,9 +3081,10 @@ spec:
                         className="flex-1 bg-[#202124] border border-[#5f6368] rounded-lg px-3 py-2 text-xs text-[#e8eaed] focus:outline-none focus:border-[#8ab4f8]"
                       />
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (!newCategoryName.trim()) return;
-                          addCategory(newCategoryName);
+                          const result = await addCategory(newCategoryName);
+                          if (result.error) setCategoryActionError(result.error);
                           setNewCategoryName("");
                         }}
                         disabled={!newCategoryName.trim()}

@@ -83,7 +83,7 @@ function StatusStepper({ status, language }: { status: DeliveryStatus; language:
 }
 
 export default function RunnerDeliveryPanel({ seller, language }: RunnerDeliveryPanelProps) {
-  const isRunner = seller.category === "Services&Runners";
+  const isRunner = seller.category === "Transport & Runners";
 
   const [subView, setSubView] = useState<"open" | "active" | "history">(isRunner ? "open" : "active");
   const [openJobs, setOpenJobs] = useState<DeliveryRequest[]>([]);
