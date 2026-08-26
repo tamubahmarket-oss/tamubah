@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, ShieldCheck, HelpCircle, Gift, Receipt, Eye, ShieldAlert, Lock, UserCheck } from "lucide-react";
+import { X, ShieldCheck, HelpCircle, Gift, Receipt, Eye, ShieldAlert, Lock, UserCheck, MessageCircle } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
 
 interface TermsModalProps {
@@ -239,22 +239,45 @@ export default function TermsModal({ isOpen, onClose, defaultTab = "terms", onSw
                   </p>
                 </div>
 
-                {/* Section 5: Auditing */}
+                {/* Section 5: WhatsApp Business Requirement & Official Seller Community */}
+                <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wider text-emerald-800">
+                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    5. WhatsApp Business Requirement & Official Seller Community
+                  </h4>
+                  <p className="text-slate-700">
+                    To uphold the professionalism, credibility, and operational integrity of the TAMU BAH marketplace, all registered sellers are required to provide and maintain an active <strong className="text-slate-800">WhatsApp Business account</strong> (rather than a standard personal WhatsApp number) as their designated contact channel on the platform. A WhatsApp Business account enables your storefront to benefit from a verified business profile, catalog display, automated greeting and away messages, published business hours, and a clear separation between your personal communications and your commercial dealings with buyers — all of which materially strengthen buyer confidence in your listing and reflect positively on the TAMU BAH marketplace as a whole.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Upon successful registration or update of your merchant profile, the WhatsApp Business number you provide will be added by the TAMU BAH administration team to our <strong className="text-slate-800">Official TAMU BAH Seller WhatsApp Group</strong>. This group serves as our primary official communication channel to registered merchants and is used exclusively for purposes including, but not limited to: (i) announcements regarding updates to these Terms of Service or our Privacy Policy; (ii) subscription, billing, and Early Bird promotional status reminders; (iii) platform maintenance, feature releases, and onboarding guidance; (iv) verification and compliance notices; and (v) other administrative communications reasonably related to your continued use of the TAMU BAH platform.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    By submitting your WhatsApp Business number during registration or at any subsequent profile update, you expressly acknowledge and consent to: (a) TAMU BAH adding your number to the Official TAMU BAH Seller WhatsApp Group; (b) receiving official broadcasts, announcements, and administrative messages through this group and/or directly from verified TAMU BAH administrator accounts; and (c) your business display name being visible to fellow group members as part of this shared merchant community.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    You are responsible for ensuring that your registered WhatsApp Business number remains active, monitored, and promptly updated with TAMU BAH should it change, so as to avoid disruption to your group membership or delays in receiving important platform notices. To preserve the integrity and relevance of this community space, the group is strictly reserved for official TAMU BAH communications; sellers may not use it to solicit, advertise, or distribute promotional content unrelated to TAMU BAH to fellow members. TAMU BAH reserves the right to remove any member from the group at its sole discretion in the event of misuse.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Should you wish to be removed from the Official Seller WhatsApp Group, you may submit a request to our administration team at any time. Please note, however, that opting out of the group does not exempt you from any updates to these Terms of Service, billing policies, or platform requirements, which shall remain binding upon you as a registered seller regardless of your group membership status; in such cases, TAMU BAH will endeavor to notify you through alternative means, such as your registered merchant dashboard or email, where available.
+                  </p>
+                </div>
+
+                {/* Section 6: Auditing */}
                 <div className="space-y-2">
                   <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 uppercase tracking-wider">
                     <span className="w-1.5 h-3 bg-emerald-600 rounded-sm"></span>
-                    5. Verification and Auditing
+                    6. Verification and Auditing
                   </h4>
                   <p>
                     Storefronts are subject to periodic administrative review. The TAMU BAH administration team reserves the right to suspend or terminate listings or seller profiles that are flagged for suspicious activities, customer complaints, or failure to comply with local business standards.
                   </p>
                 </div>
 
-                {/* Section 6: Mission & Vision */}
+                {/* Section 7: Mission & Vision */}
                 <div className="space-y-2 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-100/60">
                   <h4 className="font-extrabold text-emerald-900 text-sm flex items-center gap-1.5 uppercase tracking-wider">
                     <span className="w-1.5 h-3 bg-emerald-600 rounded-sm"></span>
-                    6. Our Shared Mission & Community Vision
+                    7. Our Shared Mission & Community Vision
                   </h4>
                   <p className="text-slate-700">
                     TAMU BAH is designed as an inclusive platform specifically to help local merchants promote and sell their products, while encouraging them to unleash their creativity and realize their business aspirations.
@@ -363,22 +386,45 @@ export default function TermsModal({ isOpen, onClose, defaultTab = "terms", onSw
                   </p>
                 </div>
 
-                {/* Section 5: Auditing (Bahasa) */}
+                {/* Section 5: Keperluan WhatsApp Business & Komuniti Rasmi Penjual (Bahasa) */}
+                <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 uppercase tracking-wider text-emerald-800">
+                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    5. Keperluan Akaun WhatsApp Business & Komuniti Rasmi Penjual
+                  </h4>
+                  <p className="text-slate-700">
+                    Bagi memastikan profesionalisme, kredibiliti, dan integriti operasi pasaran TAMU BAH, semua penjual berdaftar dikehendaki menyediakan dan mengekalkan <strong className="text-slate-800">akaun WhatsApp Business</strong> yang aktif (dan bukannya nombor WhatsApp peribadi biasa) sebagai saluran hubungan rasmi kedai anda di platform ini. Akaun WhatsApp Business membolehkan kedai anda memanfaatkan profil perniagaan yang disahkan, paparan katalog, mesej ucapan dan tidak hadir automatik, waktu operasi yang dipaparkan, serta pemisahan yang jelas antara komunikasi peribadi anda dengan urusan perniagaan bersama pembeli — semua ini secara langsung meningkatkan keyakinan pembeli terhadap senarai anda dan mencerminkan imej positif terhadap keseluruhan pasaran TAMU BAH.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Selepas pendaftaran atau kemas kini profil peniaga anda berjaya, nombor WhatsApp Business yang anda berikan akan ditambah oleh pasukan pentadbir TAMU BAH ke dalam <strong className="text-slate-800">Kumpulan WhatsApp Rasmi Penjual TAMU BAH</strong>. Kumpulan ini berfungsi sebagai saluran komunikasi rasmi utama kami kepada peniaga berdaftar, dan digunakan khusus untuk tujuan termasuk, tetapi tidak terhad kepada: (i) pengumuman berkaitan kemas kini kepada Syarat Perkhidmatan atau Dasar Privasi ini; (ii) peringatan langganan, pengebilan, dan status promosi Early Bird; (iii) penyelenggaraan platform, pelancaran ciri baharu, dan panduan pendaftaran; (iv) notis pengesahan dan pematuhan; serta (v) komunikasi pentadbiran lain yang berkaitan secara munasabah dengan penggunaan berterusan platform TAMU BAH oleh anda.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Dengan menyerahkan nombor WhatsApp Business anda semasa pendaftaran atau pada mana-mana kemas kini profil seterusnya, anda dengan jelas mengakui dan bersetuju bahawa: (a) TAMU BAH akan menambah nombor anda ke dalam Kumpulan WhatsApp Rasmi Penjual TAMU BAH; (b) anda akan menerima siaran, pengumuman, dan mesej pentadbiran rasmi melalui kumpulan ini dan/atau terus daripada akaun pentadbir TAMU BAH yang disahkan; dan (c) nama paparan perniagaan anda akan kelihatan kepada ahli kumpulan lain sebagai sebahagian daripada komuniti peniaga bersama ini.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Anda bertanggungjawab memastikan nombor WhatsApp Business berdaftar anda kekal aktif, dipantau, dan dikemas kini dengan segera bersama TAMU BAH sekiranya ia berubah, bagi mengelakkan gangguan kepada keahlian kumpulan anda atau kelewatan menerima notis platform yang penting. Bagi mengekalkan integriti dan kerelevanan ruang komuniti ini, kumpulan ini dikhaskan secara ketat untuk komunikasi rasmi TAMU BAH sahaja; penjual tidak dibenarkan menggunakannya untuk menawar, mengiklan, atau menyebarkan kandungan promosi yang tidak berkaitan dengan TAMU BAH kepada ahli lain. TAMU BAH berhak mengeluarkan mana-mana ahli daripada kumpulan mengikut budi bicara mutlaknya sekiranya berlaku penyalahgunaan.
+                  </p>
+                  <p className="text-slate-600 mt-1">
+                    Sekiranya anda ingin dikeluarkan daripada Kumpulan WhatsApp Rasmi Penjual, anda boleh menghantar permintaan kepada pasukan pentadbir kami pada bila-bila masa. Walau bagaimanapun, sila ambil maklum bahawa keluar daripada kumpulan tidak mengecualikan anda daripada sebarang kemas kini kepada Syarat Perkhidmatan ini, dasar pengebilan, atau keperluan platform, yang akan terus mengikat anda sebagai penjual berdaftar tanpa mengira status keahlian kumpulan anda; dalam keadaan sedemikian, TAMU BAH akan berusaha memaklumkan anda melalui cara alternatif, seperti papan pemuka peniaga berdaftar anda atau e-mel, jika tersedia.
+                  </p>
+                </div>
+
+                {/* Section 6: Auditing (Bahasa) */}
                 <div className="space-y-2">
                   <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5 uppercase tracking-wider">
                     <span className="w-1.5 h-3 bg-emerald-600 rounded-sm"></span>
-                    5. Pengesahan dan Audit
+                    6. Pengesahan dan Audit
                   </h4>
                   <p>
                     Halaman kedai adalah tertakluk kepada semakan pentadbiran berkala. Pasukan pentadbir TAMU BAH berhak untuk menggantung atau menamatkan senarai atau profil penjual yang ditandakan mempunyai aktiviti mencurigakan, aduan pelanggan, atau kegagalan mematuhi standard perniagaan tempatan.
                   </p>
                 </div>
 
-                {/* Section 6: Mission & Vision (Bahasa) */}
+                {/* Section 7: Mission & Vision (Bahasa) */}
                 <div className="space-y-2 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-100/60">
                   <h4 className="font-extrabold text-emerald-900 text-sm flex items-center gap-1.5 uppercase tracking-wider">
                     <span className="w-1.5 h-3 bg-emerald-600 rounded-sm"></span>
-                    6. Misi Bersama & Visi Komuniti
+                    7. Misi Bersama & Visi Komuniti
                   </h4>
                   <p className="text-slate-700">
                     TAMU BAH direka sebagai platform inklusif khusus untuk membantu peniaga tempatan mempromosikan dan menjual produk mereka, di samping menggalakkan mereka mengembangkan kreativiti dan merealisasikan aspirasi perniagaan mereka.
