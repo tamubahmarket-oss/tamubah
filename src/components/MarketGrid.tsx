@@ -340,27 +340,32 @@ export default function MarketGrid({
       <div className="bg-white rounded-3xl p-4 md:p-5 shadow-md border border-slate-100 mb-8">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
 
-          {/* Category icons — icon only, no labels/toggle */}
+          {/* Category chips — icon + name label, so categories are identifiable
+              at a glance instead of relying on icon shape alone */}
           <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-            {categoryChips.map((cat) => (
-              <button
-                key={cat}
-                id={`category-chip-${cat.replace(/\s+/g, "-")}`}
-                onClick={() => setSelectedCategory(cat)}
-                title={cat === "All" ? t("all_categories") : t(cat)}
-                className={`w-11 h-11 shrink-0 rounded-2xl flex items-center justify-center transition-all cursor-pointer border ${
-                  selectedCategory === cat
-                    ? "bg-emerald-600 border-emerald-600 text-white shadow-sm scale-105"
-                    : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {cat === "All" ? (
-                  <Grid className="w-5 h-5" />
-                ) : (
-                  <CategoryIcon category={cat} className="w-6 h-6" />
-                )}
-              </button>
-            ))}
+            {categoryChips.map((cat) => {
+              const label = cat === "All" ? t("all_categories") : (t(cat) !== cat ? t(cat) : cat.replace(/&/g, " & "));
+              return (
+                <button
+                  key={cat}
+                  id={`category-chip-${cat.replace(/\s+/g, "-")}`}
+                  onClick={() => setSelectedCategory(cat)}
+                  title={label}
+                  className={`h-11 shrink-0 rounded-2xl flex items-center gap-2 px-4 transition-all cursor-pointer border whitespace-nowrap ${
+                    selectedCategory === cat
+                      ? "bg-emerald-600 border-emerald-600 text-white shadow-sm scale-105"
+                      : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {cat === "All" ? (
+                    <Grid className="w-5 h-5 shrink-0" />
+                  ) : (
+                    <CategoryIcon category={cat} className="w-5 h-5 shrink-0" />
+                  )}
+                  <span className="text-sm font-semibold">{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Location */}
