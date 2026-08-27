@@ -39,6 +39,7 @@ interface BossKuSeller {
   verificationTier: string;
   logoUrl?: string;
   averageRating: number;
+  description?: string | null;
 }
 
 interface ChatMessage {
@@ -340,6 +341,11 @@ export default function BossKuChat() {
                                   {s.location}
                                 </span>
                               </div>
+                              {s.description && (
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
+                                  {s.description}
+                                </p>
+                              )}
                               <a
                                 href={getWhatsAppLink(s.phoneNumber, s.businessName)}
                                 target="_blank"

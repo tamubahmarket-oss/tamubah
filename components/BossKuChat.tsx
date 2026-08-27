@@ -38,6 +38,7 @@ interface BossKuSeller {
   verificationTier: string;
   logoUrl?: string;
   averageRating: number;
+  description?: string | null;
 }
 
 interface ChatMessage {
@@ -80,7 +81,6 @@ export default function BossKuChat() {
 
   // Show the popup bubble a couple seconds after landing, once per browser
   // tab session. If dismissed with the X, don't nag again this session.
-  // ALWAYS ensure the floating button is visible as a fallback
   useEffect(() => {
     sessionIdRef.current = getOrCreateSessionId();
     const alreadyDismissed = sessionStorage.getItem("bossku_popup_dismissed") === "true";
@@ -90,7 +90,6 @@ export default function BossKuChat() {
         // returning mid-session with chat history in memory only — keep it simple,
         // just reopen the launcher bubble collapsed.
       }
-      // Ensure button shows even after dismissal
       return;
     }
     const timer = setTimeout(() => setShowPopup(true), 1800);
@@ -186,7 +185,7 @@ export default function BossKuChat() {
   };
 
   return (
-    <div className="fixed bottom-5 right-4 md:right-6 z-[100] flex flex-col items-end gap-3">
+    <div className="fixed bottom-5 right-4 md:right-6 z-50 flex flex-col items-end gap-3">
       {/* Popup bubble: "Cari / apa / Bossku?" */}
       <AnimatePresence>
         {showPopup && !chatOpen && (
@@ -341,6 +340,11 @@ export default function BossKuChat() {
                                   {s.location}
                                 </span>
                               </div>
+                              {s.description && (
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
+                                  {s.description}
+                                </p>
+                              )}
                               <a
                                 href={getWhatsAppLink(s.phoneNumber, s.businessName)}
                                 target="_blank"

@@ -426,10 +426,10 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
       </section>
 
       {/* Ownership / legal footer */}
-      <section className="max-w-4xl mx-auto px-4 py-12 border-t border-slate-200/50 bg-gradient-to-t from-slate-50 to-transparent">
-        <p className="text-center text-xs text-slate-600 leading-relaxed font-medium">
+      <section className="max-w-4xl mx-auto px-4 pb-10">
+        <p className="text-center text-[11px] text-slate-400 leading-relaxed">
           {isEN ? "Owned & operated by" : "Dimiliki & dikendalikan oleh"}{" "}
-          <span className="font-bold text-slate-700">TAMUBAH GLOBAL 202603219687 (AS0520291-W)</span>
+          <span className="font-semibold text-slate-500">TAMUBAH GLOBAL 202603219687 (AS0520291-W)</span>
         </p>
       </section>
 
