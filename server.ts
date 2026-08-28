@@ -693,6 +693,208 @@ const QUALITY_WORDS = [
   "reliable ka", "boleh percaya", "trusted kah", "power kah", "power ka",
 ];
 
+// ----------------------------------------------------------------------------
+// CONTENT SAFETY — TamuBah is a halal, family-friendly marketplace. Bossku
+// must never search for or entertain requests for alcohol, non-halal items,
+// or sexual/prostitution-adjacent "services". Matched on whole words (not raw
+// substrings) so it never misfires on innocent words that merely contain one
+// of these as a fragment (e.g. "Essex", "artist").
+// ----------------------------------------------------------------------------
+const BLOCKED_TERMS: { reason: "alcohol" | "nonhalal" | "sexual"; words: string[] }[] = [
+  {
+    reason: "alcohol",
+    words: [
+      "beer", "bir", "arak", "wain", "wine", "vodka", "whisky", "whiskey",
+      "rum", "tequila", "liquor", "liqueur", "alkohol", "alcohol", "toddy",
+      "tuak", "cider", "champagne", "brandy", "gin", "stout", "sake",
+    ],
+  },
+  {
+    reason: "nonhalal",
+    words: [
+      "babi", "pork", "bacon", "lard", "khinzir", "ham", "pepperoni",
+      "non-halal", "non halal", "tidak halal", "haram",
+    ],
+  },
+  {
+    reason: "sexual",
+    words: [
+      "sex", "seks", "sexual", "porn", "pornografi", "pornography",
+      "prostitute", "prostitution", "pelacur", "lonely service",
+      "escort", "gspot", "call girl", "jual diri", "sugar baby", "sugar daddy",
+      "nsfw", "onlyfans",
+    ],
+  },
+];
+
+function detectBlockedContent(lower: string): "alcohol" | "nonhalal" | "sexual" | null {
+  for (const group of BLOCKED_TERMS) {
+    for (const w of group.words) {
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = w.includes(" ") ? escaped : `\\b${escaped}\\b`;
+      if (new RegExp(pattern, "i").test(lower)) return group.reason;
+    }
+  }
+  return null;
+}
+
+function blockedContentReply(reason: "alcohol" | "nonhalal" | "sexual", language: "EN" | "BM"): string {
+  const messages: Record<string, { bm: string; en: string }> = {
+    alcohol: {
+      bm: "Maaf bah, TamuBah ni platform halal untuk usahawan Sabah — kami tidak carikan atau senaraikan minuman beralkohol. Ada apa-apa lain saya boleh tolong cari?",
+      en: "Sorry bah, TamuBah is a halal marketplace for Sabahan sellers — we don't search for or list alcoholic drinks. Is there anything else I can help you find?",
+    },
+    nonhalal: {
+      bm: "Maaf bah, TamuBah komited 100% halal, jadi saya tidak boleh carikan barang bukan halal macam tu. Nak saya cari makanan halal lain ka?",
+      en: "Sorry bah, TamuBah is a 100% halal marketplace so I can't search for non-halal items like that. Want me to find you a halal alternative instead?",
+    },
+    sexual: {
+      bm: "Maaf bah, TamuBah adalah platform perniagaan yang selamat dan sesuai untuk keluarga. Saya tidak boleh tolong dengan permintaan macam tu. Ada produk atau perkhidmatan lain saya boleh carikan?",
+      en: "Sorry bah, TamuBah is a safe, family-friendly marketplace and I can't help with that kind of request. Is there a product or legitimate service I can help you find instead?",
+    },
+  };
+  return language === "BM" ? messages[reason].bm : messages[reason].en;
+}
+
+// ----------------------------------------------------------------------------
+// SMALL TALK — greetings, thanks, and off-topic requests (coding help, etc.)
+// get a short, in-character reply instead of falling through to a product
+// search that would otherwise return irrelevant "everything we have" results.
+// ----------------------------------------------------------------------------
+const GREETING_WORDS = ["hi", "hai", "hello", "helo", "assalamualaikum", "salam", "morning", "petang", "malam", "apa khabar", "hey"];
+const THANKS_WORDS = ["thank you", "thanks", "terima kasih", "tq", "makasih", "tenkiu"];
+const OFF_TOPIC_WORDS = [
+  "html", "css", "javascript", "python", "coding", "code", "program", "script",
+  "write me", "essay", "homework", "translate this", "poem", "lyrics", "song lyrics",
+];
+const REJECTION_WORDS = ["bukan ni", "bukan itu", "tak nak", "salah", "not what i want", "wrong one", "tu bukan"];
+
+function isGreetingOnly(lower: string): boolean {
+  const stripped = lower.replace(/[^\p{L}\s]/gu, "").trim();
+  return GREETING_WORDS.some((g) => stripped === g || stripped.startsWith(g + " ") || stripped === g + "!");
+}
+function isThanksOnly(lower: string): boolean {
+  return THANKS_WORDS.some((t) => lower.includes(t)) && lower.length < 40;
+}
+function isOffTopicRequest(lower: string): boolean {
+  return OFF_TOPIC_WORDS.some((w) => lower.includes(w));
+}
+function isRejection(lower: string): boolean {
+  return REJECTION_WORDS.some((w) => lower.includes(w));
+}
+
+// ----------------------------------------------------------------------------
+// MATH — Bossku can answer straightforward arithmetic ("3+1?", "what is 12*4")
+// without touching the marketplace search at all. Input is whitelisted down to
+// digits/operators/parentheses ONLY before any evaluation happens, and it's
+// evaluated with a small hand-rolled recursive-descent parser (no eval/Function),
+// so there is no code-execution risk from user input.
+// ----------------------------------------------------------------------------
+function extractMathExpression(raw: string): string | null {
+  let s = raw
+    .toLowerCase()
+    .replace(/^(what'?s|what is|berapa(kah)?|apa itu|kira|hitung)\b/i, "")
+    .replace(/[?=]/g, "")
+    .trim();
+  if (!s) return null;
+  if (!/^[0-9+\-*/().\s]+$/.test(s)) return null;
+  if (!/[0-9]/.test(s) || !/[+\-*/]/.test(s)) return null; // needs a number AND an operator
+  return s;
+}
+
+function safeEvaluateMath(expr: string): number | null {
+  let i = 0;
+  const peek = () => expr[i];
+  const isDigit = (c: string | undefined) => !!c && c >= "0" && c <= "9";
+
+  function parseNumber(): number {
+    let start = i;
+    while (isDigit(peek()) || peek() === ".") i++;
+    if (start === i) throw new Error("bad number");
+    return parseFloat(expr.slice(start, i));
+  }
+  function parseFactor(): number {
+    while (peek() === " ") i++;
+    if (peek() === "(") {
+      i++;
+      const v = parseExpr();
+      while (peek() === " ") i++;
+      if (peek() !== ")") throw new Error("missing )");
+      i++;
+      return v;
+    }
+    if (peek() === "-") {
+      i++;
+      return -parseFactor();
+    }
+    return parseNumber();
+  }
+  function parseTerm(): number {
+    let v = parseFactor();
+    while (true) {
+      while (peek() === " ") i++;
+      if (peek() === "*") {
+        i++;
+        v *= parseFactor();
+      } else if (peek() === "/") {
+        i++;
+        const d = parseFactor();
+        if (d === 0) throw new Error("div by zero");
+        v /= d;
+      } else break;
+    }
+    return v;
+  }
+  function parseExpr(): number {
+    let v = parseTerm();
+    while (true) {
+      while (peek() === " ") i++;
+      if (peek() === "+") {
+        i++;
+        v += parseTerm();
+      } else if (peek() === "-") {
+        i++;
+        v -= parseTerm();
+      } else break;
+    }
+    return v;
+  }
+
+  try {
+    const result = parseExpr();
+    while (peek() === " ") i++;
+    if (i !== expr.length) return null; // leftover garbage — not a clean expression
+    return Number.isFinite(result) ? Math.round(result * 1e6) / 1e6 : null;
+  } catch {
+    return null;
+  }
+}
+
+// ----------------------------------------------------------------------------
+// SERVICE REQUESTS — Bossku should affirmatively welcome any legitimate
+// service request (cleaning, mechanic, makeup artist, tutor, etc.) even if no
+// exact match is live yet, instead of a flat "nothing found" — TamuBah's
+// Services & Runners category is open to any legal, halal service.
+// ----------------------------------------------------------------------------
+const SERVICE_SYNONYMS = [
+  "cleaning", "cleaner", "pembersihan", "cuci rumah", "housekeeping",
+  "mekanik", "mechanic", "repair", "baiki",
+  "makeup", "make up", "solek", "makeup artist", "mua",
+  "tukang", "handyman", "tukang paip", "plumber", "plumbing",
+  "elektrik", "electrician", "wiring",
+  "jahit", "tailor", "seamstress", "alter baju",
+  "tuisyen", "tuition", "tutor", "les",
+  "fotografi", "photographer", "videographer", "photography",
+  "catering", "masak", "cook", "chef",
+  "urut", "spa", "massage therapist", "reflexology",
+  "runner", "delivery", "hantar barang", "courier",
+  "servis", "service", "freelance", "freelancer",
+];
+function isServiceRequest(lower: string): boolean {
+  return SERVICE_SYNONYMS.some((s) => lower.includes(s));
+}
+
+
 // Real product attributes Bossku can spot inside title/description text, so
 // its follow-up question is grounded in what's actually being sold ("pedas
 // kah atau murah kah?") instead of a generic scripted prompt.
@@ -741,53 +943,78 @@ function detectBossKuLocation(lower: string): string | null {
 }
 
 function detectBossKuCategory(lower: string): string | null {
+  // NOTE: values here MUST exactly match BUSINESS_CATEGORIES in types.ts
+  // ("Food&Tamu", "Bundle&Fashion", "Gadgets&Electronics", "Cars&Bikes",
+  // "Homes&Living", "Services&Runners", "Others") — a prior version of this
+  // map used slightly different spacing/naming ("Food & Tamu", "Home &
+  // Living", "Transport & Runners", "Professional Services & Freelance",
+  // "Art & Crafts") which never matched a single real product/seller record,
+  // silently breaking every category-filtered search using those synonyms.
   const map: Record<string, string> = {
-    "food & tamu": "Food & Tamu",
-    "makan": "Food & Tamu",
-    "makanan": "Food & Tamu",
-    "food": "Food & Tamu",
-    "kuih": "Food & Tamu",
-    "minuman": "Food & Tamu",
-    "drink": "Food & Tamu",
-    "art & crafts": "Art & Crafts",
-    "kraf": "Art & Crafts",
-    "seni": "Art & Crafts",
-    "craft": "Art & Crafts",
-    "handmade": "Art & Crafts",
-    "buatan tangan": "Art & Crafts",
-    "bundle & fashion": "Bundle & Fashion",
-    "baju": "Bundle & Fashion",
-    "fashion": "Bundle & Fashion",
-    "pakaian": "Bundle & Fashion",
-    "bundle": "Bundle & Fashion",
-    "gadgets & electronic": "Gadgets & Electronic",
-    "gadget": "Gadgets & Electronic",
-    "phone": "Gadgets & Electronic",
-    "telefon": "Gadgets & Electronic",
-    "electronic": "Gadgets & Electronic",
-    "elektronik": "Gadgets & Electronic",
-    "home & living": "Home & Living",
-    "rumah": "Home & Living",
-    "perabot": "Home & Living",
-    "furniture": "Home & Living",
-    "home": "Home & Living",
-    "transport & runners": "Transport & Runners",
-    "kereta": "Transport & Runners",
-    "motor": "Transport & Runners",
-    "basikal": "Transport & Runners",
-    "bike": "Transport & Runners",
-    "car": "Transport & Runners",
-    "runner": "Transport & Runners",
-    "hantar": "Transport & Runners",
-    "delivery": "Transport & Runners",
-    "professional services & freelance": "Professional Services & Freelance",
-    "freelance": "Professional Services & Freelance",
-    "servis": "Professional Services & Freelance",
-    "service": "Professional Services & Freelance",
+    "food&tamu": "Food&Tamu",
+    "food & tamu": "Food&Tamu",
+    "makan": "Food&Tamu",
+    "makanan": "Food&Tamu",
+    "food": "Food&Tamu",
+    "kuih": "Food&Tamu",
+    "minuman": "Food&Tamu",
+    "drink": "Food&Tamu",
+    "tamu": "Food&Tamu",
+
+    "bundle&fashion": "Bundle&Fashion",
+    "bundle & fashion": "Bundle&Fashion",
+    "baju": "Bundle&Fashion",
+    "fashion": "Bundle&Fashion",
+    "pakaian": "Bundle&Fashion",
+    "bundle": "Bundle&Fashion",
+
+    "gadgets&electronics": "Gadgets&Electronics",
+    "gadgets & electronics": "Gadgets&Electronics",
+    "gadget": "Gadgets&Electronics",
+    "phone": "Gadgets&Electronics",
+    "telefon": "Gadgets&Electronics",
+    "electronic": "Gadgets&Electronics",
+    "elektronik": "Gadgets&Electronics",
+
+    "cars&bikes": "Cars&Bikes",
+    "cars & bikes": "Cars&Bikes",
+    "kereta": "Cars&Bikes",
+    "motor": "Cars&Bikes",
+    "motosikal": "Cars&Bikes",
+    "basikal": "Cars&Bikes",
+    "bike": "Cars&Bikes",
+    "car": "Cars&Bikes",
+
+    "homes&living": "Homes&Living",
+    "homes & living": "Homes&Living",
+    "home & living": "Homes&Living",
+    "rumah": "Homes&Living",
+    "perabot": "Homes&Living",
+    "furniture": "Homes&Living",
+    "home": "Homes&Living",
+
+    "services&runners": "Services&Runners",
+    "services & runners": "Services&Runners",
+    "freelance": "Services&Runners",
+    "servis": "Services&Runners",
+    "service": "Services&Runners",
+    "runner": "Services&Runners",
+    "hantar": "Services&Runners",
+    "delivery": "Services&Runners",
+
+    "kraf": "Others",
+    "seni": "Others",
+    "craft": "Others",
+    "handmade": "Others",
+    "buatan tangan": "Others",
   };
   for (const key of Object.keys(map)) {
     if (lower.includes(key)) return map[key];
   }
+  // Any recognised service synonym (cleaning, mechanic, makeup artist, tutor,
+  // etc.) also counts as Services&Runners even without the word "service"
+  // itself appearing — see SERVICE_SYNONYMS.
+  if (isServiceRequest(lower)) return "Services&Runners";
   for (const cat of BUSINESS_CATEGORIES) {
     if (lower.includes(cat.toLowerCase())) return cat;
   }
@@ -807,16 +1034,170 @@ function extractBossKuKeywords(raw: string, location: string | null, category: s
   return Array.from(new Set(cleaned)).slice(0, 8);
 }
 
-async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
+// Looks for an approved seller whose exact business name is mentioned in the
+// raw message (e.g. "cerita pasal Kedai Kak Ani" or "who is Dapur Mama Leena")
+// so Bossku can describe that specific shop instead of running a generic search.
+async function findSellerByNameMention(rawMessage: string): Promise<any | null> {
   const lower = rawMessage.toLowerCase();
+  if (lower.length < 6) return null; // too short to reliably contain a real business name
+  const { data: sellerRows } = await supabase.from("sellers").select("*").eq("is_approved", true);
+  if (!sellerRows || sellerRows.length === 0) return null;
+  let best: any = null;
+  let bestLen = 0;
+  for (const s of sellerRows) {
+    const name = (s.business_name || "").toLowerCase().trim();
+    if (name.length >= 4 && lower.includes(name) && name.length > bestLen) {
+      best = s;
+      bestLen = name.length;
+    }
+  }
+  return best;
+}
+
+// Builds a rich, descriptive reply about one specific shop — its story
+// (seller.dream), category, location, verification, and real rating.
+async function describeSellerReply(s: any, language: "EN" | "BM"): Promise<string> {
+  const { averageRating, reviewCount } = await getSellerRatingSummary(s.id);
+  const ratingTxt =
+    averageRating > 0
+      ? language === "BM"
+        ? `⭐ ${averageRating.toFixed(1)} (${reviewCount} ulasan)`
+        : `⭐ ${averageRating.toFixed(1)} (${reviewCount} reviews)`
+      : language === "BM"
+      ? "belum ada rating lagi"
+      : "no ratings yet";
+  const verifiedTxt =
+    s.verification_tier && s.verification_tier !== "None"
+      ? language === "BM"
+        ? ` Kedai ni disahkan juga (${s.verification_tier}).`
+        : ` This shop is also verified (${s.verification_tier}).`
+      : "";
+  const story = (s.dream || "").trim();
+  const storySnippet = story ? `${story.slice(0, 220)}${story.length > 220 ? "…" : ""}` : "";
+  if (language === "BM") {
+    const storyTxt = storySnippet ? ` Cerita depa: "${storySnippet}"` : "";
+    return `Nah, ${s.business_name} ni kedai ${s.category || "TamuBah"} kat ${s.location || "Sabah"}. Rating: ${ratingTxt}.${verifiedTxt}${storyTxt} Bulih terus WhatsApp depa kalau berminat!`;
+  }
+  const storyTxt = storySnippet ? ` Their story: "${storySnippet}"` : "";
+  return `Here's ${s.business_name} — a ${s.category || "TamuBah"} shop based in ${s.location || "Sabah"}. Rating: ${ratingTxt}.${verifiedTxt}${storyTxt} You can WhatsApp them directly if you're interested!`;
+}
+
+function toSellerCard(s: any, averageRating: number) {
+  const story = (s.dream || "").trim();
+  return {
+    id: s.id,
+    businessName: s.business_name,
+    ownerName: s.owner_name,
+    category: s.category,
+    location: s.location,
+    phoneNumber: s.phone_number,
+    verificationTier: s.verification_tier || "None",
+    logoUrl: s.logo_url,
+    averageRating,
+    description: story ? `${story.slice(0, 160)}${story.length > 160 ? "…" : ""}` : null,
+  };
+}
+
+async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
+  const lower = rawMessage.toLowerCase().trim();
+  const empty = (reply: string, extra: Record<string, any> = {}) => ({
+    reply,
+    products: [],
+    sellers: [],
+    detectedCategory: null,
+    detectedLocation: null,
+    keywords: [],
+    resultCount: 0,
+    ...extra,
+  });
+
+  // ---- 0. Content safety — TamuBah never searches for alcohol, non-halal
+  // items, or sexual/prostitution-adjacent requests, no matter how it's asked.
+  const blockedReason = detectBlockedContent(lower);
+  if (blockedReason) {
+    return empty(blockedContentReply(blockedReason, language), { flagged: blockedReason });
+  }
+
+  // ---- 1. Pure arithmetic — Bossku can just answer it directly.
+  const mathExpr = extractMathExpression(lower);
+  if (mathExpr) {
+    const answer = safeEvaluateMath(mathExpr);
+    if (answer !== null) {
+      const reply =
+        language === "BM"
+          ? `${mathExpr.trim()} = ${answer} bah! 😄 Tapi sini Bossku sebenarnya nak tolong u cari barang/kedai — cari apa hari ni?`
+          : `${mathExpr.trim()} = ${answer} bah! 😄 But Bossku's actually here to help you find products or shops — what are you looking for today?`;
+      return empty(reply);
+    }
+  }
+
+  // ---- 2. Small talk — greetings, thanks, off-topic and "that's not it" replies
+  // get a short in-character reply instead of falling through to a product
+  // search (which previously returned irrelevant "everything we have" results
+  // for anything that matched zero keywords).
+  if (isGreetingOnly(lower)) {
+    return empty(
+      language === "BM"
+        ? "Waalaikumsalam / hai bah! Saya Bossku 🙏 Nak cari apa hari ni — makanan, kedai, ke perkhidmatan?"
+        : "Hi there bah! I'm Bossku 🙏 What are you looking for today — food, a shop, or a service?"
+    );
+  }
+  if (isThanksOnly(lower)) {
+    return empty(
+      language === "BM"
+        ? "Sama-sama bah! 🙏 Kalau nak cari apa-apa lagi, cakap saja ya."
+        : "You're welcome bah! 🙏 Just let me know if you need anything else."
+    );
+  }
+  if (isOffTopicRequest(lower)) {
+    return empty(
+      language === "BM"
+        ? "Hehe, Bossku ni pembantu belanja TamuBah je bah, bukan buat coding/karangan 😅 Tapi kalau nak cari produk, kedai, atau perkhidmatan orang kita, cakap sajalah!"
+        : "Haha, Bossku's just TamuBah's shopping assistant bah, not for coding or essays 😅 But if you want to find a product, shop, or service from our sellers, just ask!"
+    );
+  }
+  if (isRejection(lower)) {
+    return empty(
+      language === "BM"
+        ? "Aiyo maaf bah! Bagitau saya lebih detail sikit — barang apa, kawasan mana, ka harga macam mana yang bossku betul-betul nak?"
+        : "Sorry about that bah! Tell me a bit more specifically — what item, which area, or what price range you're actually after?"
+    );
+  }
+
   const detectedLocation = detectBossKuLocation(lower);
   const detectedCategory = detectBossKuCategory(lower);
   const wantsCheapest = CHEAP_WORDS.some((w) => lower.includes(w));
   const wantsSeller = SELLER_INTENT_WORDS.some((w) => lower.includes(w));
   const wantsQualityOpinion = QUALITY_WORDS.some((w) => lower.includes(w));
+  const wantsServiceAffirm = isServiceRequest(lower);
   const priceMatch = lower.match(/(?:bawah|under|kurang(?:\s+dari)?|below)\s*rm?\s*(\d+)/);
   const priceCeiling = priceMatch ? parseInt(priceMatch[1], 10) : null;
   const keywords = extractBossKuKeywords(rawMessage, detectedLocation, detectedCategory);
+
+  // ---- 3. "Describe this shop" — a specific registered business name was
+  // mentioned by name, so answer about that shop directly instead of a
+  // generic search.
+  const mentionedSeller = await findSellerByNameMention(rawMessage);
+  if (mentionedSeller) {
+    const { averageRating } = await getSellerRatingSummary(mentionedSeller.id);
+    return {
+      reply: await describeSellerReply(mentionedSeller, language),
+      products: [],
+      sellers: [toSellerCard(mentionedSeller, averageRating)],
+      detectedCategory: mentionedSeller.category || null,
+      detectedLocation: mentionedSeller.location || null,
+      keywords,
+      resultCount: 1,
+    };
+  }
+
+  // ---- 4. Browse-by-area — "what's in Kota Kinabalu?" / a bare district name
+  // with no specific category should show a spread of what's available, not
+  // require an exact category match too.
+  const isBrowseIntent =
+    !!detectedLocation &&
+    !detectedCategory &&
+    (keywords.length === 0 || /apa ada|senarai|list|showcase|tunjuk|available|what'?s in|browse/.test(lower));
 
   const { data: productRows } = await supabase
     .from("products")
@@ -835,14 +1216,25 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   if (priceCeiling !== null) {
     candidates = candidates.filter((p: any) => Number(p.price) <= priceCeiling);
   }
-  if (keywords.length > 0) {
+  if (!isBrowseIntent && keywords.length > 0) {
     const kwFiltered = candidates.filter((p: any) => {
       const haystack = `${p.title} ${p.description || ""}`.toLowerCase();
       return keywords.some((kw) => haystack.includes(kw));
     });
-    // Only narrow by free-text keywords if it doesn't wipe out every result —
-    // otherwise fall back to the location/category/price filters alone.
-    if (kwFiltered.length > 0) candidates = kwFiltered;
+    if (kwFiltered.length > 0) {
+      // Narrowing by free-text keywords found real matches — use them.
+      candidates = kwFiltered;
+    } else if (!detectedLocation && !detectedCategory && !wantsServiceAffirm) {
+      // No structural signal at all (no location/category/service-intent) AND
+      // the free-text keywords matched nothing — this is almost certainly
+      // noise or an off-topic message (e.g. a random word), not a genuine
+      // product search. Treat it as a real "no results" instead of silently
+      // falling back to every product TamuBah has.
+      candidates = [];
+    }
+    // Otherwise (a location and/or category WAS detected): keep those
+    // structurally-filtered candidates even though the exact phrase didn't
+    // match any title/description — a partial match is still useful.
   }
 
   // Pull ratings for sorting/comparison
@@ -870,7 +1262,7 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     return Number(a.price) - Number(b.price);
   });
 
-  const topProducts = withRating.slice(0, 5).map((p: any) => ({
+  const toProductCard = (p: any) => ({
     id: p.id,
     title: p.title,
     price: Number(p.price),
@@ -884,7 +1276,34 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     verificationTier: p.sellers?.verification_tier || "None",
     averageRating: p._avgRating,
     reviewCount: p._reviewCount,
-  }));
+  });
+
+  let topProducts: any[];
+  let categoryBreakdown: { category: string; count: number }[] = [];
+
+  if (isBrowseIntent) {
+    // Diversify across categories (top 2 per category) instead of a single
+    // rating-sorted list, so a bare district name shows the full range of
+    // what's available there, not just whichever category happens to have
+    // the single highest-rated item.
+    const byCategory = new Map<string, any[]>();
+    for (const p of withRating) {
+      const arr = byCategory.get(p.category) || [];
+      arr.push(p);
+      byCategory.set(p.category, arr);
+    }
+    categoryBreakdown = Array.from(byCategory.entries())
+      .map(([category, arr]) => ({ category, count: arr.length }))
+      .sort((a, b) => b.count - a.count);
+    const picked: any[] = [];
+    for (const [, arr] of byCategory) {
+      arr.sort((a, b) => b._avgRating - a._avgRating);
+      picked.push(...arr.slice(0, 2));
+    }
+    topProducts = picked.slice(0, 8).map(toProductCard);
+  } else {
+    topProducts = withRating.slice(0, 5).map(toProductCard);
+  }
 
   let topSellers: any[] = [];
   if (wantsSeller || topProducts.length === 0) {
@@ -900,19 +1319,11 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
       });
       if (kwFiltered.length > 0) sellerCandidates = kwFiltered;
     }
-    topSellers = sellerCandidates.slice(0, 5).map((s: any) => ({
-      id: s.id,
-      businessName: s.business_name,
-      ownerName: s.owner_name,
-      category: s.category,
-      location: s.location,
-      phoneNumber: s.phone_number,
-      verificationTier: s.verification_tier || "None",
-      logoUrl: s.logo_url,
-      averageRating: ratingBySeller.get(s.id)
-        ? parseFloat(((ratingBySeller.get(s.id)!.total) / (ratingBySeller.get(s.id)!.count)).toFixed(1))
-        : 0,
-    }));
+    topSellers = sellerCandidates.slice(0, 5).map((s: any) => {
+      const rb = ratingBySeller.get(s.id);
+      const avgRating = rb && rb.count > 0 ? parseFloat((rb.total / rb.count).toFixed(1)) : 0;
+      return toSellerCard(s, avgRating);
+    });
   }
 
   const resultCount = topProducts.length + topSellers.length;
@@ -922,7 +1333,36 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const locTxt = detectedLocation ? ` kat ${detectedLocation}` : "";
   const catTxt = detectedCategory ? ` untuk "${detectedCategory}"` : "";
 
-  if (wantsQualityOpinion) {
+  if (isBrowseIntent) {
+    // "What's available in <area>" — lead with a category-count summary so
+    // it reads like a real overview of the district, not a random list.
+    const summaryBM = categoryBreakdown.length
+      ? categoryBreakdown.map((c) => `${c.category} (${c.count})`).join(", ")
+      : "";
+    const summaryEN = summaryBM;
+    if (resultCount === 0) {
+      bits.push(
+        language === "BM"
+          ? `Belum ada penjual berdaftar kat ${detectedLocation} lagi bah. Cuba kawasan lain, atau jadilah orang pertama daftar kat sini!`
+          : `No sellers registered in ${detectedLocation} just yet bah. Try another district, or be the first to register there!`
+      );
+    } else {
+      bits.push(
+        language === "BM"
+          ? `Ini yang ada kat ${detectedLocation} buat masa ni bah: ${summaryBM}. Ini beberapa pilihan terbaik:`
+          : `Here's what's available in ${detectedLocation} right now bah: ${summaryEN}. Here are some of the best picks:`
+      );
+    }
+  } else if (wantsServiceAffirm && resultCount === 0) {
+    // A legitimate service request (cleaning, mechanic, makeup artist, tutor,
+    // etc.) with no exact live listing yet — affirm that TamuBah welcomes
+    // this kind of service rather than giving a flat "not found".
+    bits.push(
+      language === "BM"
+        ? `Ya bah, TamuBah memang terbuka untuk perkhidmatan macam tu di bawah kategori Services&Runners!${locTxt ? ` Buat masa ni belum ada lagi penyedia khidmat tu${locTxt}` : " Belum ada penyedia khidmat tu didaftarkan lagi"}, tapi boleh cuba semak semula tak lama lagi, atau kalau u sendiri buat khidmat tu, jom daftar jadi penjual pertama!`
+        : `Yes bah, TamuBah does welcome that kind of service under our Services&Runners category!${locTxt ? ` There isn't a provider listed yet${locTxt}` : " There isn't a provider listed yet"}, but check back soon, or if you offer this yourself, register as our first seller for it!`
+    );
+  } else if (wantsQualityOpinion) {
     // "Sedap kah makanan di sini?" style questions — Bossku doesn't just list
     // matches, it vouches using real rating data and asks a follow-up to
     // narrow things down, grounded in what's actually being sold ("pedas
@@ -963,7 +1403,8 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
       bits.push("Ish, ndamu jumpa lagi barang/kedai yang padan tu bah. Cuba kau tukar sikit kata carian, atau bagitau kawasan lain kunuh.");
     } else if (topProducts.length > 0) {
-      bits.push(`Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
+      const prefix = wantsServiceAffirm ? "Ya bah, ada! " : "";
+      bits.push(`${prefix}Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
     } else {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
       bits.push(`Ndada barang yang match tapi ada ${topSellers.length} kedai yang boleh kau try bah, cuba tanya depa terus.`);
@@ -973,7 +1414,8 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
       bits.push("Aiyo, cannot find any match one lah. Try lain keyword, or tell me another area can bah.");
     } else if (topProducts.length > 0) {
-      bits.push(`Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
+      const prefix = wantsServiceAffirm ? "Yes bah, we do! " : "";
+      bits.push(`${prefix}Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
     } else {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
       bits.push(`No product match exactly, but got ${topSellers.length} shop you can try bah, just ask them direct.`);
