@@ -1037,21 +1037,83 @@ function extractBossKuKeywords(raw: string, location: string | null, category: s
 // Looks for an approved seller whose exact business name is mentioned in the
 // raw message (e.g. "cerita pasal Kedai Kak Ani" or "who is Dapur Mama Leena")
 // so Bossku can describe that specific shop instead of running a generic search.
+// Generic words that shouldn't count as "identifying" on their own when
+// matching a business name against a message — e.g. a shop literally named
+// "Kedai Sedap" shouldn't match every message that happens to contain the
+// word "kedai".
+const GENERIC_NAME_WORDS = new Set([
+  "kedai", "shop", "store", "dapur", "warung", "gerai", "stall", "cafe",
+  "kafe", "restoran", "restaurant", "tamu", "mama", "kak", "abang", "cik",
+  "mak", "pak", "the", "and", "dan", "sdn", "bhd", "enterprise", "trading",
+  "usaha", "niaga", "food", "makanan",
+]);
+
+function tokenizeName(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 2);
+}
+
+// Looks for an approved seller whose business name is mentioned in the raw
+// message — tolerant of partial names, word order, and generic prefixes
+// ("cerita pasal dapur mama" should still find "Dapur Mama Leena"), but only
+// fires when exactly one seller is a confident, unambiguous match, so it
+// never guesses wrong or hijacks a generic search.
 async function findSellerByNameMention(rawMessage: string): Promise<any | null> {
   const lower = rawMessage.toLowerCase();
-  if (lower.length < 6) return null; // too short to reliably contain a real business name
+  if (lower.length < 6) return null; // too short to reliably reference a real shop
+  const messageTokens = new Set(tokenizeName(rawMessage));
+  if (messageTokens.size === 0) return null;
+
   const { data: sellerRows } = await supabase.from("sellers").select("*").eq("is_approved", true);
   if (!sellerRows || sellerRows.length === 0) return null;
-  let best: any = null;
-  let bestLen = 0;
+
+  type Scored = { seller: any; score: number };
+  const matches: Scored[] = [];
+
   for (const s of sellerRows) {
-    const name = (s.business_name || "").toLowerCase().trim();
-    if (name.length >= 4 && lower.includes(name) && name.length > bestLen) {
-      best = s;
-      bestLen = name.length;
+    const name = (s.business_name || "").trim();
+    if (!name) continue;
+    const lowerName = name.toLowerCase();
+
+    // Exact full-name mention is always the strongest, highest-priority signal.
+    if (name.length >= 4 && lower.includes(lowerName)) {
+      matches.push({ seller: s, score: 1000 + name.length });
+      continue;
+    }
+
+    // Otherwise, require most of the *identifying* (non-generic) words in the
+    // business name to appear somewhere in the message — order-independent
+    // and tolerant of the user dropping a word or two, so "bossku auto"
+    // still matches "Bossku Auto Repair" and "leena punya dapur" still
+    // matches "Dapur Mama Leena", while a bare "kedai" or "mama" alone never
+    // matches anything.
+    const nameTokens = tokenizeName(name);
+    const identifyingTokens = nameTokens.filter((t) => !GENERIC_NAME_WORDS.has(t));
+    if (identifyingTokens.length === 0) continue; // fully generic name — exact match only
+    const matchedCount = identifyingTokens.filter((t) => messageTokens.has(t)).length;
+    // Single distinctive word: must match it exactly (it's the only signal).
+    // Two or more: allow up to ~40% to be missing, minimum 2 words matched.
+    const required =
+      identifyingTokens.length === 1 ? 1 : Math.max(2, Math.ceil(identifyingTokens.length * 0.6));
+    if (matchedCount >= required) {
+      matches.push({ seller: s, score: matchedCount * 10 });
     }
   }
-  return best;
+
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => b.score - a.score);
+
+  // If more than one seller matches with the SAME top score, it's ambiguous
+  // (e.g. two shops both named with the same distinctive word) — don't guess,
+  // fall through to the normal search instead of describing the wrong shop.
+  const topScore = matches[0].score;
+  const tiedAtTop = matches.filter((m) => m.score === topScore);
+  if (tiedAtTop.length > 1) return null;
+
+  return matches[0].seller;
 }
 
 // Builds a rich, descriptive reply about one specific shop — its story
