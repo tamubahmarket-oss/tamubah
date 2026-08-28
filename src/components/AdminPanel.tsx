@@ -789,6 +789,32 @@ spec:
     }
   };
 
+  // NEW: admins can reassign a product's category directly from the
+  // Revisions & Products table — e.g. to fix a seller's miscategorised
+  // listing without having to go through the seller's own dashboard.
+  const handleChangeProductCategory = async (productId: string, newCategory: string) => {
+    try {
+      setActionLoading(`category-${productId}`);
+      const res = await fetch(`/api/admin/products/${productId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: newCategory }),
+      });
+      if (res.ok) {
+        await fetchAdminData();
+        onRefreshMarket();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        window.alert(errorData.error || "Failed to update the product's category.");
+      }
+    } catch (error) {
+      console.error("Error changing product category", error);
+      window.alert("Failed to update the product's category.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Renamed from a hard delete to a market removal. This only unpublishes
   // the listing (same as a seller unpublishing their own product), so it
   // disappears from the public Market page but the seller keeps it fully
@@ -2291,10 +2317,22 @@ spec:
                                     </span>
                                   )}
                                 </div>
-                                <span className="bg-[#2d3033] text-[#bdc1c6] px-1.5 py-0.5 rounded text-[9px] font-bold border border-[#3c4043] inline-flex items-center gap-1 w-fit">
-                                  <CategoryIcon category={product.category} className="w-2.5 h-2.5 shrink-0" />
-                                  {product.category}
-                                </span>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <select
+                                    value={product.category}
+                                    onChange={(e) => handleChangeProductCategory(product.id, e.target.value)}
+                                    disabled={actionLoading === `category-${product.id}`}
+                                    title="Change this product's category"
+                                    className="bg-[#2d3033] text-[#bdc1c6] pl-1.5 pr-1 py-0.5 rounded text-[9px] font-bold border border-[#3c4043] focus:outline-none focus:border-[#8ab4f8] disabled:opacity-50 cursor-pointer w-fit max-w-full"
+                                  >
+                                    {adminCategories.map((cat) => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                    {!adminCategories.includes(product.category) && (
+                                      <option value={product.category}>{product.category} (unlisted)</option>
+                                    )}
+                                  </select>
+                                </div>
                                 <div className="flex items-center gap-1 mt-auto pt-1.5">
                                   <button
                                     onClick={() => handleTogglePin(product.id, !!isProductPinned)}
@@ -2416,10 +2454,28 @@ spec:
                                 RM {product.price.toFixed(2)}
                               </td>
                               <td className="py-4 px-4">
-                                <span className="bg-[#2d3033] text-[#bdc1c6] px-2 py-0.5 rounded text-[10px] font-bold font-sans border border-[#3c4043] inline-flex items-center gap-1">
-                                  <CategoryIcon category={product.category} className="w-3 h-3 shrink-0" />
-                                  {product.category}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <CategoryIcon category={product.category} className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  <select
+                                    value={product.category}
+                                    onChange={(e) => handleChangeProductCategory(product.id, e.target.value)}
+                                    disabled={actionLoading === `category-${product.id}`}
+                                    title="Change this product's category"
+                                    className="bg-[#2d3033] text-[#bdc1c6] px-2 py-1 rounded text-[10px] font-bold font-sans border border-[#3c4043] focus:outline-none focus:border-[#8ab4f8] disabled:opacity-50 cursor-pointer"
+                                  >
+                                    {adminCategories.map((cat) => (
+                                      <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                    {/* Keep a stray/legacy category value selectable so it isn't silently
+                                        wiped out just for showing up in this dropdown */}
+                                    {!adminCategories.includes(product.category) && (
+                                      <option value={product.category}>{product.category} (unlisted)</option>
+                                    )}
+                                  </select>
+                                  {actionLoading === `category-${product.id}` && (
+                                    <span className="text-[9px] text-[#8ab4f8] font-bold">Saving…</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-4 px-4 text-right font-sans">
                                 <div className="flex items-center justify-end gap-1.5">
