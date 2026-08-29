@@ -26,6 +26,12 @@ export interface Seller {
   isOfficial?: boolean;
   businessLink?: string; // optional external link for orders (Google Maps/Forms, website, catalog, etc.)
   createdAt?: string;
+  // "Near Me" live map — seller's most recent GPS position, only present/
+  // used while they've opted in via locationSharingEnabled.
+  latitude?: number;
+  longitude?: number;
+  locationSharingEnabled?: boolean;
+  locationUpdatedAt?: string;
 }
 
 export interface Product {
@@ -228,12 +234,11 @@ export const SABAH_LOCATIONS = [
 ];
 
 export const BUSINESS_CATEGORIES = [
-  "Food & Tamu",
-  "Art & Crafts",
-  "Bundle & Fashion",
-  "Gadgets & Electronic",
-  "Home & Living",
-  "Transport & Runners",
-  "Professional Services & Freelance",
+  "Food&Tamu",
+  "Bundle&Fashion",
+  "Gadgets&Electronics",
+  "Cars&Bikes",
+  "Homes&Living",
+  "Services&Runners",
   "Others"
 ];

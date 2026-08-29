@@ -4,6 +4,8 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import http from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServer as createViteServer } from "vite";
 import { createRequire } from "module";
@@ -462,6 +464,10 @@ interface SellerRow {
   latest_update_at: string | null;
   is_official: boolean;
   created_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  location_sharing_enabled: boolean;
+  location_updated_at: string | null;
 }
 
 interface ProductRow {
@@ -507,6 +513,10 @@ function sellerToApi(s: SellerRow, extra: Record<string, any> = {}) {
     latestUpdateAt: s.latest_update_at || undefined,
     isOfficial: !!s.is_official,
     createdAt: s.created_at,
+    latitude: s.latitude ?? undefined,
+    longitude: s.longitude ?? undefined,
+    locationSharingEnabled: !!s.location_sharing_enabled,
+    locationUpdatedAt: s.location_updated_at || undefined,
     ...extra,
   };
 }
@@ -527,6 +537,19 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
     createdAt: p.created_at,
     ...extra,
   };
+}
+
+// Great-circle distance between two lat/lng points, in kilometers.
+// Used for "Near Me" — filtering/sorting sellers by distance from the buyer.
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 const MAX_PUBLISHED_PRODUCTS_PER_SELLER = 1;
@@ -1655,6 +1678,34 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === "production";
   const distPath = path.join(process.cwd(), "dist");
 
+  // ---------------------------------------------------------------------
+  // "NEAR ME" LIVE MAP — WebSocket server for broadcasting seller location
+  // updates to any buyer with the Near Me map open. Attached to the same
+  // underlying HTTP server as Express (httpServer.listen(...) replaces the
+  // usual app.listen(...) at the bottom of this function).
+  //
+  // Kept as a plain in-memory broadcast (not Supabase Realtime) to match
+  // this app's existing architecture, where the browser only ever talks to
+  // this Express server, never directly to Supabase. NOTE: this in-memory
+  // approach only broadcasts to clients connected to THIS server process —
+  // if you ever scale to multiple server instances, live updates won't sync
+  // across instances without adding a shared pub/sub layer (e.g. Redis).
+  // ---------------------------------------------------------------------
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws/nearby" });
+  const nearbyClients = new Set<WebSocket>();
+  wss.on("connection", (ws) => {
+    nearbyClients.add(ws);
+    ws.on("close", () => nearbyClients.delete(ws));
+    ws.on("error", () => nearbyClients.delete(ws));
+  });
+  function broadcastSellerLocation(payload: Record<string, any>) {
+    const msg = JSON.stringify(payload);
+    for (const client of nearbyClients) {
+      if (client.readyState === client.OPEN) client.send(msg);
+    }
+  }
+
   // Created up-front (instead of only at the very end) so the SSR
   // meta-tag routes below can also run index.html through Vite's dev
   // transform, keeping HMR/dev behavior identical to the plain SPA route.
@@ -2505,6 +2556,54 @@ async function startServer() {
     }
   });
 
+  // ---------------------------------------------------------------------
+  // "NEAR ME" LIVE MAP — buyer side.
+  // Returns approved, location-sharing-enabled sellers within `radiusKm` of
+  // the given point, sorted nearest-first. The buyer's browser then opens a
+  // WebSocket connection to /ws/nearby for live position updates after this
+  // initial snapshot.
+  // ---------------------------------------------------------------------
+  app.get("/api/sellers/nearby", async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      const radiusKm = req.query.radiusKm ? parseFloat(req.query.radiusKm as string) : 15;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ error: "Valid lat and lng query parameters are required." });
+      }
+
+      const { data: sellers, error } = await supabase
+        .from("sellers")
+        .select("id, business_name, category, location, verification_tier, latitude, longitude, location_updated_at, logo_url")
+        .eq("is_approved", true)
+        .eq("location_sharing_enabled", true)
+        .not("latitude", "is", null)
+        .not("longitude", "is", null);
+      if (error) throw error;
+
+      const nearby = (sellers || [])
+        .map((s: any) => ({
+          id: s.id,
+          businessName: s.business_name,
+          category: s.category,
+          location: s.location,
+          verificationTier: s.verification_tier || "None",
+          latitude: s.latitude,
+          longitude: s.longitude,
+          updatedAt: s.location_updated_at,
+          logoUrl: s.logo_url || undefined,
+          distanceKm: haversineDistanceKm(lat, lng, s.latitude, s.longitude),
+        }))
+        .filter((s: any) => s.distanceKm <= radiusKm)
+        .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+
+      res.json({ sellers: nearby });
+    } catch (err: any) {
+      console.error("GET /api/sellers/nearby", err);
+      res.status(500).json({ error: "Failed to load nearby sellers." });
+    }
+  });
+
   app.get("/api/sellers/:id", async (req, res) => {
     try {
       const { data: seller, error } = await supabase.from("sellers").select("*").eq("id", req.params.id).maybeSingle();
@@ -2591,6 +2690,77 @@ async function startServer() {
     }
   });
 
+  // ---------------------------------------------------------------------
+  // "NEAR ME" LIVE MAP — seller side.
+  // Called continuously (via navigator.geolocation.watchPosition, throttled
+  // client-side) while a seller has location sharing turned on. Updates
+  // their stored coordinates and broadcasts the new position to every buyer
+  // currently viewing the Near Me map, so pins move live.
+  // ---------------------------------------------------------------------
+  app.patch("/api/sellers/:id/location", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { latitude, longitude, locationSharingEnabled } = req.body;
+
+      const update: Record<string, any> = {};
+      if (typeof locationSharingEnabled === "boolean") {
+        update.location_sharing_enabled = locationSharingEnabled;
+      }
+      // Sharing was just turned off — clear the stored position too, so a
+      // seller who opts out doesn't leave a stale "last known" pin behind.
+      if (locationSharingEnabled === false) {
+        update.latitude = null;
+        update.longitude = null;
+      } else if (typeof latitude === "number" && typeof longitude === "number") {
+        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+          return res.status(400).json({ error: "Invalid coordinates." });
+        }
+        update.latitude = latitude;
+        update.longitude = longitude;
+        update.location_updated_at = new Date().toISOString();
+      }
+      if (Object.keys(update).length === 0) {
+        return res.status(400).json({ error: "Nothing to update — provide latitude/longitude and/or locationSharingEnabled." });
+      }
+
+      const { data: seller, error } = await supabase
+        .from("sellers")
+        .update(update)
+        .eq("id", id)
+        .select("id, business_name, category, verification_tier, latitude, longitude, location_sharing_enabled, location_updated_at, is_approved")
+        .maybeSingle();
+      if (error) throw error;
+      if (!seller) return res.status(404).json({ error: "Seller profile not found." });
+
+      // Only broadcast approved, sharing-enabled sellers with real coordinates
+      // — never leak a pending/unapproved seller's location to buyers.
+      if (seller.is_approved && seller.location_sharing_enabled && seller.latitude != null && seller.longitude != null) {
+        broadcastSellerLocation({
+          type: "location_update",
+          sellerId: seller.id,
+          businessName: seller.business_name,
+          category: seller.category,
+          verificationTier: seller.verification_tier || "None",
+          latitude: seller.latitude,
+          longitude: seller.longitude,
+          updatedAt: seller.location_updated_at,
+        });
+      } else if (!seller.location_sharing_enabled) {
+        // Tell any open buyer maps to remove this pin immediately.
+        broadcastSellerLocation({ type: "location_removed", sellerId: seller.id });
+      }
+
+      res.json({
+        success: true,
+        latitude: seller.latitude ?? undefined,
+        longitude: seller.longitude ?? undefined,
+        locationSharingEnabled: !!seller.location_sharing_enabled,
+      });
+    } catch (err: any) {
+      console.error("PATCH /api/sellers/:id/location", err);
+      res.status(500).json({ error: "Failed to update location." });
+    }
+  });
   // ---------------------------------------------------------------------
   // PUBLIC (seller self-service): change own password — requires the
   // current password, same as any normal "change password" flow.
@@ -4475,7 +4645,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     // Runs in the background so a large legacy-image backlog never delays
     // the server from binding to the port / passing a host's health check.

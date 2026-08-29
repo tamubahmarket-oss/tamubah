@@ -26,6 +26,12 @@ export interface Seller {
   isOfficial?: boolean;
   businessLink?: string; // optional external link for orders (Google Maps/Forms, website, catalog, etc.)
   createdAt?: string;
+  // "Near Me" live map — seller's most recent GPS position, only present/
+  // used while they've opted in via locationSharingEnabled.
+  latitude?: number;
+  longitude?: number;
+  locationSharingEnabled?: boolean;
+  locationUpdatedAt?: string;
 }
 
 export interface Product {

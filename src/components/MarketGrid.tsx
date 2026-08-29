@@ -3,7 +3,7 @@ import {
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
   X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
-  Share2, Check, Store, Star
+  Share2, Check, Store, Star, Navigation
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, SABAH_LOCATIONS } from "../types";
@@ -12,6 +12,7 @@ import { useLanguage } from "../lib/LanguageContext";
 import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/categoryIcons";
 import { useCategories } from "../lib/categoryStore";
 import StoryBar from "./StoryBar";
+import NearMeMap from "./NearMeMap";
 
 interface MarketGridProps {
   products: Product[];
@@ -43,6 +44,7 @@ export default function MarketGrid({
     return "";
   });
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [showNearMeMap, setShowNearMeMap] = useState(false);
   const [localLocation, setLocalLocation] = useState<string>("All");
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
@@ -385,6 +387,18 @@ export default function MarketGrid({
               ))}
             </select>
           </div>
+
+          {/* "Near Me" live map — shows nearby sellers on an actual map
+              instead of just filtering by district */}
+          <button
+            id="near-me-button"
+            onClick={() => setShowNearMeMap(true)}
+            title={language === "EN" ? "Shops Near Me" : "Kedai Berhampiran Saya"}
+            className="h-11 shrink-0 rounded-2xl flex items-center gap-2 px-4 border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Navigation className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">{language === "EN" ? "Near Me" : "Berhampiran"}</span>
+          </button>
         </div>
 
         {/* Active search chip (search itself lives in the header) */}
@@ -960,6 +974,12 @@ export default function MarketGrid({
           shareText={shareModalData.shareText}
         />
       )}
+
+      <NearMeMap
+        open={showNearMeMap}
+        onClose={() => setShowNearMeMap(false)}
+        onViewSellerShop={onViewSellerShop}
+      />
 
     </div>
   );

@@ -54,7 +54,13 @@ create table if not exists sellers (
   latest_update         text default '',
   latest_update_at      timestamptz,
   is_official           boolean not null default false,
-  created_at            timestamptz not null default now()
+  created_at            timestamptz not null default now(),
+  -- "Near Me" live map: seller's most recent GPS position, only populated
+  -- once they opt in via location_sharing_enabled (prompted on login).
+  latitude               double precision,
+  longitude              double precision,
+  location_sharing_enabled boolean not null default false,
+  location_updated_at    timestamptz
 );
 
 -- Safe to re-run on an existing database.
@@ -65,6 +71,11 @@ alter table sellers add column if not exists next_payment_due timestamptz;
 alter table sellers add column if not exists latest_update text default '';
 alter table sellers add column if not exists latest_update_at timestamptz;
 alter table sellers add column if not exists is_official boolean not null default false;
+-- "Near Me" live map (see column comments above for what each does).
+alter table sellers add column if not exists latitude double precision;
+alter table sellers add column if not exists longitude double precision;
+alter table sellers add column if not exists location_sharing_enabled boolean not null default false;
+alter table sellers add column if not exists location_updated_at timestamptz;
 
 -- Safe to re-run: widens the verification_tier check constraint to allow the
 -- new 'Licensed' value (a plain "verified business" badge, distinct from the
@@ -77,6 +88,11 @@ alter table sellers add constraint sellers_verification_tier_check
 create index if not exists idx_sellers_location on sellers(location);
 create index if not exists idx_sellers_category on sellers(category);
 create index if not exists idx_sellers_is_approved on sellers(is_approved);
+-- Speeds up GET /api/sellers/nearby, which filters to approved +
+-- location-sharing-enabled sellers with real coordinates.
+create index if not exists idx_sellers_location_lookup
+  on sellers (is_approved, location_sharing_enabled)
+  where latitude is not null and longitude is not null;
 
 -- ---------------------------------------------------------------------------
 -- products

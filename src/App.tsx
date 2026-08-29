@@ -17,6 +17,8 @@ import SellerList from "./components/SellerList";
 import PendingApproval from "./components/PendingApproval";
 import ReceiptView from "./components/ReceiptView";
 import CommunityForum from "./components/CommunityForum";
+import LocationSharingPrompt from "./components/LocationSharingPrompt";
+import { useSellerLocationTracking } from "./lib/useSellerLocationTracking";
 import { useAnnouncement, markAnnouncementSeen } from "./lib/announcementStore";
 
 export default function App() {
@@ -45,6 +47,13 @@ export default function App() {
   const accountPanelRef = useRef<HTMLDivElement>(null);
   const announcementPanelRef = useRef<HTMLDivElement>(null);
   const { announcement, isUnread: hasUnreadAnnouncement } = useAnnouncement();
+
+  // "Near Me" live map — continuously report this seller's position to the
+  // backend for as long as they're logged in AND have turned sharing on.
+  // (See useSellerLocationTracking.ts for the platform limitation: this only
+  // tracks while the TamuBah tab is open/foregrounded, not truly in the
+  // background — that's a mobile-browser constraint, not a bug.)
+  useSellerLocationTracking(currentSeller?.id, !!currentSeller?.locationSharingEnabled);
 
   // Close the account/announcement dropdowns when clicking outside of them
   useEffect(() => {
@@ -821,6 +830,14 @@ export default function App() {
 
       {/* Terms & Conditions Global Modal */}
 
+      {/* "Near Me" live map — prompt approved sellers to enable location
+          sharing after they log in, so their shop shows up on buyers' maps. */}
+      {currentSeller && (
+        <LocationSharingPrompt
+          seller={currentSeller}
+          onUpdated={(patch) => handleUpdateSeller({ ...currentSeller, ...patch })}
+        />
+      )}
 
     </div>
   );
