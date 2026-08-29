@@ -784,6 +784,93 @@ function isRejection(lower: string): boolean {
 }
 
 // ----------------------------------------------------------------------------
+// SELLER ONBOARDING — "how do I become a seller / can I still register /
+// how does approval, commission, or withdrawal work" style questions. These
+// aren't product searches at all, so they get a dedicated step-by-step reply
+// instead of running a (guaranteed-empty) product search.
+// ----------------------------------------------------------------------------
+const REGISTRATION_WORDS = [
+  "jadi seller", "jadi penjual", "daftar jadi", "macam mana mau jadi", "mcm mana mau jadi",
+  "macam mana nak jadi", "mcm mana nak jadi", "how to become a seller", "how to register",
+  "how do i register", "still can register", "boleh register ka", "boleh daftar ka",
+  "nak daftar", "mau daftar",
+];
+const SELLER_OPS_WORDS = [
+  "berapa lama approve", "lama approve", "approval", "ada training", "naikkan jualan",
+  "boleh iklan", "kena ada lesen", "boleh jual", "commission berapa", "berapa commission",
+  "guna gambar sendiri", "withdraw duit", "mcm mana withdraw", "ada support ka",
+  "delete listing", "edit harga", "kena online selalu", "guna nama brand",
+  "minimum jualan", "kena cukai", "daftar ramai", "group seller", "dapat verified",
+  "mcm mana dapat verified", "saya dari kampung boleh", "saya jual", "orang tau barang saya",
+];
+function isSellerOnboardingQuestion(lower: string): boolean {
+  return REGISTRATION_WORDS.some((w) => lower.includes(w)) || SELLER_OPS_WORDS.some((w) => lower.includes(w));
+}
+
+function sellerOnboardingReply(lower: string, language: "EN" | "BM"): string {
+  const bm =
+    `Boleh bah, TamuBah terbuka untuk sesiapa saja di Sabah, termasuk dari kampung sekalipun — tak kira kuih, makanan, fesyen, gadget, ka perkhidmatan! Ni cara nak daftar: ` +
+    `1) Pergi halaman "Daftar Jadi Penjual" di TamuBah, 2) Isi butiran kedai — nama perniagaan, kategori, kawasan, dan nombor WhatsApp Business, ` +
+    `3) Muat naik Lesen Perniagaan/SSM untuk pengesahan, 4) Tunggu kelulusan admin (biasanya cepat je), 5) Lepas approve, terus boleh listing barang dan terima order terus melalui WhatsApp — 0% komisen, cuma RM20/bulan lepas tempoh percubaan percuma. ` +
+    `Kalau ada soalan lebih spesifik pasal withdraw duit, cukai, ka syarat lain yang tak tercover di sini, terus WhatsApp support TamuBah untuk jawapan yang tepat ya bah!`;
+  const en =
+    `Yes bah, TamuBah is open to anyone in Sabah, even from a kampung — food, fashion, gadgets, or services, all welcome! Here's how to register: ` +
+    `1) Go to the "Join as Seller" page on TamuBah, 2) Fill in your shop details — business name, category, area, and WhatsApp Business number, ` +
+    `3) Upload your Trading License/SSM for verification, 4) Wait for admin approval (usually quick), 5) Once approved, list your products and start getting orders straight through WhatsApp — 0% commission, just RM20/month after the free trial. ` +
+    `For anything more specific like withdrawals, tax, or terms not covered here, message TamuBah support directly on WhatsApp for the exact answer bah!`;
+  return language === "BM" ? bm : en;
+}
+
+// ----------------------------------------------------------------------------
+// TRANSACTIONAL FAQ — buyer questions about COD, negotiation, trust/verified
+// status, halal, freshness/homemade, or timing/stock. Bossku doesn't have
+// per-seller policy data for these, so rather than guess, it gives an honest
+// general answer and points them to ask the seller directly — appended
+// alongside normal search results, not instead of them, since these often
+// come bundled with (or right after) a real product question.
+// ----------------------------------------------------------------------------
+const FAQ_TOPICS: { words: string[]; bm: string; en: string }[] = [
+  {
+    words: ["dapat kurang", "boleh tawar", "nego", "last price"],
+    bm: "Pasal harga, kebanyakan penjual letak harga tetap tapi ada yang boleh nego terus — cuba tanya penjual by WhatsApp ya.",
+    en: "On pricing — most sellers list a fixed price but some are open to negotiating directly, just ask them on WhatsApp.",
+  },
+  {
+    words: ["cod ", "bleh cod", "boleh cod", "boleh pos", "free delivery", "delivery ka", "hantar ka"],
+    bm: "Pasal COD/penghantaran, ia ikut masing-masing penjual — bila jumpa produk yang berkenan, terus WhatsApp penjual untuk sahkan.",
+    en: "On COD/delivery — that depends on each individual seller, so once you find a product you like, just WhatsApp them to confirm.",
+  },
+  {
+    words: ["trusted ka", "boleh percaya", "ori ka", "warranty"],
+    bm: "Semua penjual TamuBah disahkan melalui Lesen Perniagaan/SSM, jadi boleh percaya — tengok badge verified pada profil kedai untuk pastikan.",
+    en: "All TamuBah sellers are verified via Trading License/SSM, so they can be trusted — look for the verified badge on the shop profile to confirm.",
+  },
+  {
+    words: ["halal ka"],
+    bm: "TamuBah komited 100% halal — semua penjual adalah usahawan tempatan Sabah. Kalau nak pasti lagi, boleh terus tanya sijil halal dengan penjual.",
+    en: "TamuBah is committed to being 100% halal — all sellers are local Sabahan entrepreneurs. If you'd like extra assurance, just ask the seller for their halal certification directly.",
+  },
+  {
+    words: ["buat sendiri ka", "resepi sendiri", "handmade ka", "fresh ka"],
+    bm: "Pasal buatan sendiri/kesegaran barang, terus tanya penjual untuk cerita lebih lanjut — ramai penjual kami memang buat sendiri dari rumah.",
+    en: "On homemade/freshness — just ask the seller directly, many of our sellers genuinely make everything themselves at home.",
+  },
+  {
+    words: ["esok ada ka", "minggu depan ada ka", "lama ka tunggu", "stok banyak ka"],
+    bm: "Pasal stok dan waktu siap, ia beza-beza ikut penjual — terus WhatsApp depa untuk tanya ketersediaan terkini.",
+    en: "Stock and timing vary by seller — just WhatsApp them directly to check current availability.",
+  },
+];
+function findFaqTip(lower: string, language: "EN" | "BM"): string | null {
+  for (const topic of FAQ_TOPICS) {
+    if (topic.words.some((w) => lower.includes(w))) {
+      return language === "BM" ? topic.bm : topic.en;
+    }
+  }
+  return null;
+}
+
+// ----------------------------------------------------------------------------
 // MATH — Bossku can answer straightforward arithmetic ("3+1?", "what is 12*4")
 // without touching the marketplace search at all. Input is whitelisted down to
 // digits/operators/parentheses ONLY before any evaluation happens, and it's
@@ -935,9 +1022,40 @@ function findProductDescriptors(pool: { title: string; description?: string }[],
     .map(({ bm, en }) => ({ bm, en }));
 }
 
+// Bossku gets asked about well-known neighborhoods/localities that aren't
+// themselves in SABAH_LOCATIONS (the canonical district list used for seller
+// registration) — e.g. "likas", "inanam", "gaya street" are all inside Kota
+// Kinabalu district but a buyer will name the specific area, not the
+// district. Map the common ones back to their real district so those
+// searches still work. NOTE: some of these (Bundusan, Lok Kawi) sit near a
+// district border — mappings here are a reasonable best guess; adjust if
+// your team knows the exact administrative boundary.
+const LOCATION_ALIASES: Record<string, string> = {
+  "likas": "Kota Kinabalu",
+  "inanam": "Kota Kinabalu",
+  "kolombong": "Kota Kinabalu",
+  "kepayan": "Kota Kinabalu",
+  "tanjung aru": "Kota Kinabalu",
+  "gaya street": "Kota Kinabalu",
+  "sepanggar": "Kota Kinabalu",
+  "damai": "Kota Kinabalu",
+  "mengatal": "Kota Kinabalu",
+  "menggatal": "Kota Kinabalu",
+  "luyang": "Kota Kinabalu",
+  "kk city": "Kota Kinabalu",
+  "bundusan": "Penampang",
+  "lok kawi": "Penampang",
+  "donggongon": "Penampang",
+  "telipok": "Tuaran",
+  "kimanis": "Papar",
+};
+
 function detectBossKuLocation(lower: string): string | null {
   for (const loc of SABAH_LOCATIONS) {
     if (lower.includes(loc.toLowerCase())) return loc;
+  }
+  for (const alias of Object.keys(LOCATION_ALIASES)) {
+    if (lower.includes(alias)) return LOCATION_ALIASES[alias];
   }
   return null;
 }
@@ -960,6 +1078,8 @@ function detectBossKuCategory(lower: string): string | null {
     "minuman": "Food&Tamu",
     "drink": "Food&Tamu",
     "tamu": "Food&Tamu",
+    "baker": "Food&Tamu",
+    "bakery": "Food&Tamu",
 
     "bundle&fashion": "Bundle&Fashion",
     "bundle & fashion": "Bundle&Fashion",
@@ -1226,6 +1346,13 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     );
   }
 
+  // Seller registration/operations questions aren't product searches — answer
+  // directly with the onboarding procedure instead of running a guaranteed-
+  // empty product search against these words.
+  if (isSellerOnboardingQuestion(lower)) {
+    return empty(sellerOnboardingReply(lower, language));
+  }
+
   const detectedLocation = detectBossKuLocation(lower);
   const detectedCategory = detectBossKuCategory(lower);
   const wantsCheapest = CHEAP_WORDS.some((w) => lower.includes(w));
@@ -1394,6 +1521,12 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const bits: string[] = [];
   const locTxt = detectedLocation ? ` kat ${detectedLocation}` : "";
   const catTxt = detectedCategory ? ` untuk "${detectedCategory}"` : "";
+  // What to echo back to the user when nothing matches — always names what
+  // they were actually looking for instead of a generic "no results".
+  const searchTermText =
+    keywords.length > 0
+      ? keywords.slice(0, 3).join(" ")
+      : detectedCategory || (rawMessage.trim().length > 0 && rawMessage.trim().length < 40 ? rawMessage.trim() : (language === "BM" ? "tu" : "that"));
 
   if (isBrowseIntent) {
     // "What's available in <area>" — lead with a category-count summary so
@@ -1462,8 +1595,7 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     }
   } else if (language === "BM") {
     if (resultCount === 0) {
-      bits.push("Sini saya tolong cari" + catTxt + locTxt + " ah bah! 🙏");
-      bits.push("Ish, ndamu jumpa lagi barang/kedai yang padan tu bah. Cuba kau tukar sikit kata carian, atau bagitau kawasan lain kunuh.");
+      bits.push(`Sorry boss, setakat ni belum ada lagi bah. Ada apa-apa lagi selain ${searchTermText} yang bossku nak cari?`);
     } else if (topProducts.length > 0) {
       const prefix = wantsServiceAffirm ? "Ya bah, ada! " : "";
       bits.push(`${prefix}Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
@@ -1473,8 +1605,7 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     }
   } else {
     if (resultCount === 0) {
-      bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
-      bits.push("Aiyo, cannot find any match one lah. Try lain keyword, or tell me another area can bah.");
+      bits.push(`Sorry boss, we don't have that yet setakat ni. Anything else besides ${searchTermText} you're looking for?`);
     } else if (topProducts.length > 0) {
       const prefix = wantsServiceAffirm ? "Yes bah, we do! " : "";
       bits.push(`${prefix}Nahh! Ini saya dapat yang sesuai untuk bossku. Ada ${topProducts.length} pilihan ni yang mendapat rating bagus. Bulih contact diorang terus:`);
@@ -1482,6 +1613,14 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
       bits.push("Sini saya tolong cari" + catTxt + locTxt + " for you bah! 🙏");
       bits.push(`No product match exactly, but got ${topSellers.length} shop you can try bah, just ask them direct.`);
     }
+  }
+
+  // Append a short, honest FAQ tip when the message also touched on
+  // COD/nego/trust/halal/freshness/timing — but skip it for the browse and
+  // quality-opinion branches, which already have their own tailored replies.
+  if (!isBrowseIntent && !wantsQualityOpinion) {
+    const tip = findFaqTip(lower, language);
+    if (tip) bits.push(tip);
   }
 
   return {
