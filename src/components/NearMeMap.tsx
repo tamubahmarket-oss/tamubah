@@ -79,9 +79,29 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
           try {
             setState("loading-map");
             await loadGoogleMaps();
-            if (cancelled) return;
+          } catch (e) {
+            // Logged so the real cause (bad/missing API key, API not
+            // enabled, referrer restriction, billing not set up, etc.) is
+            // visible in the browser console instead of silently swallowed.
+            console.error("NearMeMap: failed to load Google Maps script:", e);
+            if (!cancelled) {
+              setState("error");
+              setErrorMessage(
+                isEN
+                  ? `Couldn't load Google Maps (${(e as Error)?.message || "unknown error"}). This usually means the Maps API key is missing, restricted, or the Maps JavaScript API isn't enabled/billed yet.`
+                  : `Gagal muatkan Google Maps (${(e as Error)?.message || "ralat tidak diketahui"}). Ini biasanya bermakna kunci API Maps tiada, disekat, atau Maps JavaScript API belum diaktifkan/tiada bil.`
+              );
+            }
+            return;
+          }
+          if (cancelled) return;
 
+          try {
             const res = await fetch(`/api/sellers/nearby?lat=${coords.lat}&lng=${coords.lng}&radiusKm=${RADIUS_KM}`);
+            if (!res.ok) {
+              const errText = await res.text().catch(() => "");
+              throw new Error(`Server responded ${res.status}: ${errText.slice(0, 200)}`);
+            }
             const data = await res.json();
             if (cancelled) return;
             const initialSellers: NearbySeller[] = data.sellers || [];
@@ -91,10 +111,11 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
             connectRealtime();
             setState("ready");
           } catch (e) {
+            console.error("NearMeMap: failed to fetch nearby sellers:", e);
             if (!cancelled) {
               setState("error");
               setErrorMessage(
-                isEN ? "Couldn't load the map right now. Please try again." : "Gagal muatkan peta buat masa ini. Sila cuba lagi."
+                isEN ? "Couldn't load nearby shops right now. Please try again." : "Gagal muatkan kedai berhampiran buat masa ini. Sila cuba lagi."
               );
             }
           }
