@@ -3,6 +3,7 @@ import { X, MapPin, Loader2, AlertCircle, Navigation } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "../lib/LanguageContext";
 import { loadGoogleMaps } from "../lib/googleMapsLoader";
+import { geolocationErrorMessage } from "../lib/geolocationErrors";
 import { CategoryIcon } from "../lib/categoryIcons";
 
 interface NearbySeller {
@@ -101,15 +102,9 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
         (err) => {
           if (cancelled) return;
           setState(err.code === err.PERMISSION_DENIED ? "permission-denied" : "error");
-          setErrorMessage(
-            err.code === err.PERMISSION_DENIED
-              ? (isEN
-                  ? "Location permission was denied. Allow it in your browser settings to see shops near you."
-                  : "Kebenaran lokasi ditolak. Benarkan dalam tetapan pelayar untuk lihat kedai berhampiran anda.")
-              : (isEN ? "Couldn't get your location right now." : "Gagal dapatkan lokasi anda buat masa ini.")
-          );
+          setErrorMessage(geolocationErrorMessage(err, isEN));
         },
-        { enableHighAccuracy: true, timeout: 15_000 }
+        { enableHighAccuracy: false, timeout: 15_000, maximumAge: 60_000 }
       );
     })();
 

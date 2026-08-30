@@ -3,6 +3,7 @@ import { MapPin, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Seller } from "../types";
 import { useLanguage } from "../lib/LanguageContext";
+import { geolocationErrorMessage } from "../lib/geolocationErrors";
 
 interface LocationSharingPromptProps {
   seller: Seller;
@@ -59,15 +60,9 @@ export default function LocationSharingPrompt({ seller, onUpdated }: LocationSha
       },
       (err) => {
         setRequesting(false);
-        setError(
-          err.code === err.PERMISSION_DENIED
-            ? (isEN
-                ? "Location permission was denied. You can allow it in your browser settings and try again anytime from your dashboard."
-                : "Kebenaran lokasi ditolak. Anda boleh benarkan dalam tetapan pelayar dan cuba lagi bila-bila masa dari papan pemuka anda.")
-            : (isEN ? "Couldn't get your location right now." : "Gagal dapatkan lokasi anda buat masa ini.")
-        );
+        setError(geolocationErrorMessage(err, isEN));
       },
-      { enableHighAccuracy: true, timeout: 15_000 }
+      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 60_000 }
     );
   };
 

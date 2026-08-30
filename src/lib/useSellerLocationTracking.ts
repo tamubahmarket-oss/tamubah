@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { geolocationErrorMessage } from "./geolocationErrors";
 
 // Continuously tracks and reports a seller's position to the backend while
 // `enabled` is true, using navigator.geolocation.watchPosition.
@@ -75,13 +76,9 @@ export function useSellerLocationTracking(sellerId: string | undefined, enabled:
       },
       (err) => {
         setStatus("error");
-        setErrorMessage(
-          err.code === err.PERMISSION_DENIED
-            ? "Location permission was denied. Turn it on in your browser/device settings to keep sharing your shop's location."
-            : "Couldn't get your location right now. Will keep trying."
-        );
+        setErrorMessage(geolocationErrorMessage(err, true));
       },
-      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 }
+      { enableHighAccuracy: false, maximumAge: 30_000, timeout: 20_000 }
     );
 
     return () => {
