@@ -57,10 +57,19 @@ export default function MarketGrid({
     return () => clearTimeout(timer);
   }, []);
 
-  const heroShowcaseProducts = React.useMemo(
-    () => (products || []).filter((p) => p.isAvailable !== false && !!p.imageUrl).slice(0, 8),
-    [products]
-  );
+  const heroShowcaseProducts = React.useMemo(() => {
+    const eligible = (products || []).filter((p) => p.isAvailable !== false && !!p.imageUrl);
+    // Shuffle (not just take the first N) so every available product/service
+    // gets a fair chance to appear over time, instead of always looping the
+    // same fixed creation-order subset. Re-shuffles whenever the product
+    // list itself changes (new listing added/removed).
+    const shuffled = [...eligible];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }, [products]);
   const [heroShowcaseIndex, setHeroShowcaseIndex] = useState(0);
   useEffect(() => {
     if (heroShowcaseProducts.length < 2) return;
