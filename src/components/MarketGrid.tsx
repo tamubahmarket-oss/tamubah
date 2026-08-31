@@ -25,6 +25,74 @@ interface MarketGridProps {
   onViewSellerShop?: (sellerId: string, businessName?: string) => void;
 }
 
+interface HeroShopCardProps {
+  language: string;
+  heroShowcaseProducts: Product[];
+  heroShowcaseIndex: number;
+  tickerHeightClass: string;
+}
+
+// The hero's "shop window" card — a small icon-badge for the TamuBah brand
+// (not a full header) so almost all of the card's height goes to actually
+// showing off a real product/service, like looking through a shop window
+// rather than reading a business card.
+function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass }: HeroShopCardProps) {
+  const current = heroShowcaseProducts[heroShowcaseIndex];
+  return (
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+      {/* Slim brand strip — icon-sized logo, not a full header */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+        <img src={tamubahLogo} alt="TamuBah" className="w-6 h-6 rounded-full object-cover shrink-0" />
+        <span className="font-display font-bold text-slate-900 text-sm">TamuBah</span>
+        <span className="flex items-center gap-1 ml-auto text-emerald-700">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-[10px] font-bold uppercase tracking-wide">
+            {language === "EN" ? "Live" : "Aktif"}
+          </span>
+        </span>
+      </div>
+
+      {/* The shop window itself — the product/service fills almost the
+          entire card, full-bleed image with the details captioned over it. */}
+      <div className={`relative ${tickerHeightClass} bg-slate-100`}>
+        {current ? (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current.id}
+              initial={{ x: "100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "-100%", opacity: 0 }}
+              transition={{ duration: 1, ease: "easeInOut" }}
+              className="absolute inset-0"
+            >
+              <img src={current.imageUrl} alt={current.title} className="w-full h-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-3">
+                <p className="text-white font-bold text-base leading-tight truncate">{current.title}</p>
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                  <p className="text-white/75 text-xs truncate">{current.businessName}</p>
+                  <p className="text-white font-bold text-sm shrink-0">RM {current.price?.toFixed(2)}</p>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-xs text-slate-400">
+              {language === "EN" ? "New listings coming soon" : "Penyenaraian baharu tidak lama lagi"}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 py-3">
+        <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
+          {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function MarketGrid({ 
   products, 
   loading, 
@@ -369,13 +437,37 @@ export default function MarketGrid({
         <p className="relative text-slate-500 text-sm mt-4 font-sans leading-relaxed">
           {t("order_authentic")}
         </p>
+
+        {/* Mobile shop showcase — same branded card + rotating live-product
+            ticker as desktop, but stacked below the (still centered) text
+            instead of sliding in beside it, since there's no room for a
+            side-by-side split on a phone screen. Slides up + fades in 2s
+            after mount, same trigger as the desktop shift. */}
+        <AnimatePresence>
+          {heroShifted && (
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 24 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="relative mt-6 text-left"
+            >
+              <HeroShopCard
+                language={language}
+                heroShowcaseProducts={heroShowcaseProducts}
+                heroShowcaseIndex={heroShowcaseIndex}
+                tickerHeightClass="h-56"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Hero Intro Section — desktop/tablet: timed shift + live shop showcase.
           0-2s: centered. After 2s: text shifts left (~56% width), a branded
           TamuBah shop panel slides in from the right (~38% width) with a
           continuously looping live-product ticker inside it. */}
-      <div className="hidden md:block relative mb-12 py-10 min-h-[300px]">
+      <div className="hidden md:block relative mb-12 py-10 min-h-[420px]">
         <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
         <div className={`relative flex items-center gap-6 transition-[justify-content] duration-700 ${heroShifted ? "justify-between" : "justify-center"}`}>
           <motion.div
@@ -411,59 +503,12 @@ export default function MarketGrid({
                 transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
                 className="w-[38%] shrink-0"
               >
-                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                  {/* Shop header: TamuBah branding + logo */}
-                  <div className="flex items-center gap-3 px-5 pt-5 pb-3">
-                    <img src={tamubahLogo} alt="TamuBah" className="w-11 h-11 rounded-xl object-cover shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-display font-bold text-slate-900 text-lg leading-tight truncate">TamuBah</p>
-                      <p className="text-[11px] text-emerald-700 font-semibold uppercase tracking-wide">
-                        {language === "EN" ? "Live on the marketplace" : "Aktif di pasaran"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Product/service showcase ticker — real live listings,
-                      one visible at a time: 1s slide transition, then static
-                      for 2s, looping continuously (see heroShowcaseIndex effect above). */}
-                  <div className="relative h-24 bg-gradient-to-br from-emerald-50 to-amber-50/50 mx-3 mb-3 rounded-2xl overflow-hidden">
-                    {heroShowcaseProducts.length > 0 ? (
-                      <AnimatePresence mode="wait">
-                        <motion.div
-                          key={heroShowcaseProducts[heroShowcaseIndex]?.id}
-                          initial={{ x: "100%", opacity: 0 }}
-                          animate={{ x: 0, opacity: 1 }}
-                          exit={{ x: "-100%", opacity: 0 }}
-                          transition={{ duration: 1, ease: "easeInOut" }}
-                          className="absolute inset-0 flex items-center gap-3 px-3"
-                        >
-                          <img
-                            src={heroShowcaseProducts[heroShowcaseIndex]?.imageUrl}
-                            alt={heroShowcaseProducts[heroShowcaseIndex]?.title}
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 shadow-sm"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-800 truncate">{heroShowcaseProducts[heroShowcaseIndex]?.title}</p>
-                            <p className="text-[11px] text-slate-500 truncate">{heroShowcaseProducts[heroShowcaseIndex]?.businessName}</p>
-                            <p className="text-xs font-bold text-emerald-700 mt-0.5">RM {heroShowcaseProducts[heroShowcaseIndex]?.price?.toFixed(2)}</p>
-                          </div>
-                        </motion.div>
-                      </AnimatePresence>
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <p className="text-xs text-slate-400">
-                          {language === "EN" ? "New listings coming soon" : "Penyenaraian baharu tidak lama lagi"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="px-5 pb-4">
-                    <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
-                      {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
-                    </a>
-                  </div>
-                </div>
+                <HeroShopCard
+                  language={language}
+                  heroShowcaseProducts={heroShowcaseProducts}
+                  heroShowcaseIndex={heroShowcaseIndex}
+                  tickerHeightClass="h-72"
+                />
               </motion.div>
             )}
           </AnimatePresence>
