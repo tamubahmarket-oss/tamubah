@@ -29,6 +29,16 @@ type LoadState = "idle" | "locating" | "loading-map" | "ready" | "permission-den
 
 const RADIUS_KM = 15;
 
+// Hides restaurant/hall/shop/attraction POI icons and labels, plus transit
+// stations — those belong to Google's own business listings, not TamuBah's,
+// and clutter the map with names unrelated to our sellers. Roads, water,
+// and area/city/district labels are kept since buyers still need those for
+// orientation (which is the actual point of a Sabah district-based map).
+const CLEAN_MAP_STYLE: any[] = [
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+];
+
 export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMapProps) {
   const { language } = useLanguage();
   const isEN = language === "EN";
@@ -36,6 +46,7 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sellers, setSellers] = useState<NearbySeller[]>([]);
   const [selectedSeller, setSelectedSeller] = useState<NearbySeller | null>(null);
+  const [locatingMe, setLocatingMe] = useState(false);
 
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -145,6 +156,7 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
       disableDefaultUI: true,
       zoomControl: true,
       clickableIcons: false,
+      styles: CLEAN_MAP_STYLE,
     });
     mapRef.current = map;
 
@@ -205,6 +217,51 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
       sellerMarkersRef.current.delete(sellerId);
     }
     setSellers((prev) => prev.filter((s) => s.id !== sellerId));
+  }
+
+  // Re-fetches a fresh position (not just re-centering on the stale one —
+  // the buyer may have moved since the popup opened) and recentres the map,
+  // moves the "you are here" marker, and refreshes the nearby-sellers list
+  // from that new point.
+  function handleLocateMe() {
+    if (!("geolocation" in navigator) || locatingMe) return;
+    setLocatingMe(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        buyerCoordsRef.current = coords;
+        const google = (window as any).google;
+        if (mapRef.current && google?.maps) {
+          mapRef.current.panTo(coords);
+          mapRef.current.setZoom(13);
+          buyerMarkerRef.current?.setPosition(coords);
+        }
+        try {
+          const res = await fetch(`/api/sellers/nearby?lat=${coords.lat}&lng=${coords.lng}&radiusKm=${RADIUS_KM}`);
+          if (res.ok) {
+            const data = await res.json();
+            const refreshed: NearbySeller[] = data.sellers || [];
+            setSellers(refreshed);
+            const refreshedIds = new Set(refreshed.map((s) => s.id));
+            sellerMarkersRef.current.forEach((marker, id) => {
+              if (!refreshedIds.has(id)) {
+                marker.setMap(null);
+                sellerMarkersRef.current.delete(id);
+              }
+            });
+            refreshed.forEach((s) => upsertSellerMarker(s));
+          }
+        } catch {
+          // Keep showing the previous list rather than clearing it on a
+          // transient refresh failure — the map recentring above still
+          // succeeded either way.
+        } finally {
+          setLocatingMe(false);
+        }
+      },
+      () => setLocatingMe(false),
+      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 30_000 }
+    );
   }
 
   function connectRealtime() {
@@ -312,6 +369,21 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
               )}
 
               <div ref={mapDivRef} className="w-full h-full" />
+
+              {state === "ready" && (
+                <button
+                  onClick={handleLocateMe}
+                  disabled={locatingMe}
+                  title={isEN ? "Locate me" : "Cari lokasi saya"}
+                  className="absolute bottom-44 right-3 w-10 h-10 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-60 z-10"
+                >
+                  {locatingMe ? (
+                    <Loader2 className="w-4.5 h-4.5 text-emerald-600 animate-spin" />
+                  ) : (
+                    <Navigation className="w-4.5 h-4.5 text-emerald-600" />
+                  )}
+                </button>
+              )}
 
               {state === "ready" && (
                 <div className="absolute bottom-0 left-0 right-0 max-h-40 overflow-y-auto bg-white/95 backdrop-blur border-t border-slate-100">

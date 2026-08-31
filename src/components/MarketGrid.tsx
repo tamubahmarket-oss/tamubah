@@ -13,6 +13,7 @@ import { CategoryIcon, getCategoryColor, getCategoryTint } from "../lib/category
 import { useCategories } from "../lib/categoryStore";
 import StoryBar from "./StoryBar";
 import NearMeMap from "./NearMeMap";
+import tamubahLogo from "../assets/images/traditional_bag_logo_1784122537315.jpg";
 
 interface MarketGridProps {
   products: Product[];
@@ -46,6 +47,29 @@ export default function MarketGrid({
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [showNearMeMap, setShowNearMeMap] = useState(false);
   const [localLocation, setLocalLocation] = useState<string>("All");
+
+  // Hero section timed animation — text shifts left 2s after mount, then a
+  // branded shop panel slides in on the right with a rotating live-product
+  // showcase. Desktop/tablet only (md:+) — see render below.
+  const [heroShifted, setHeroShifted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setHeroShifted(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const heroShowcaseProducts = React.useMemo(
+    () => (products || []).filter((p) => p.isAvailable !== false && !!p.imageUrl).slice(0, 8),
+    [products]
+  );
+  const [heroShowcaseIndex, setHeroShowcaseIndex] = useState(0);
+  useEffect(() => {
+    if (heroShowcaseProducts.length < 2) return;
+    // 2s static display + 1s slide transition = 3s per item, looping forever.
+    const interval = setInterval(() => {
+      setHeroShowcaseIndex((i) => (i + 1) % heroShowcaseProducts.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [heroShowcaseProducts.length]);
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
   const setSelectedLocation = (loc: string) => {
@@ -316,8 +340,8 @@ export default function MarketGrid({
         <StoryBar />
       </div>
 
-      {/* Hero Intro Section */}
-      <div className="relative text-center max-w-3xl mx-auto mb-12 py-2">
+      {/* Hero Intro Section — mobile: unchanged simple centered layout */}
+      <div className="relative text-center max-w-3xl mx-auto mb-12 py-2 md:hidden">
         <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
         <div className="relative flex items-center justify-center gap-3 mb-4">
           <span className="h-px w-8 bg-amber-400/60"></span>
@@ -326,16 +350,115 @@ export default function MarketGrid({
           </span>
           <span className="h-px w-8 bg-amber-400/60"></span>
         </div>
-        <h1 className="relative text-4xl md:text-6xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
+        <h1 className="relative text-4xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
           {language === "EN" ? (
             <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Business</span></>
           ) : (
             <>Sokong <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
           )}
         </h1>
-        <p className="relative text-slate-500 text-sm md:text-base mt-4 font-sans leading-relaxed">
+        <p className="relative text-slate-500 text-sm mt-4 font-sans leading-relaxed">
           {t("order_authentic")}
         </p>
+      </div>
+
+      {/* Hero Intro Section — desktop/tablet: timed shift + live shop showcase.
+          0-2s: centered. After 2s: text shifts left (~56% width), a branded
+          TamuBah shop panel slides in from the right (~38% width) with a
+          continuously looping live-product ticker inside it. */}
+      <div className="hidden md:block relative mb-12 py-10 min-h-[300px]">
+        <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
+        <div className={`relative flex items-center gap-6 transition-[justify-content] duration-700 ${heroShifted ? "justify-between" : "justify-center"}`}>
+          <motion.div
+            layout
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className={heroShifted ? "text-left w-[56%]" : "text-center w-full max-w-3xl"}
+          >
+            <div className={`relative flex items-center gap-3 mb-4 ${heroShifted ? "justify-start" : "justify-center"}`}>
+              <span className="h-px w-8 bg-amber-400/60"></span>
+              <span className="text-amber-700 text-[11px] font-bold uppercase tracking-[0.2em]">
+                {t("from_sabahan")}
+              </span>
+              {!heroShifted && <span className="h-px w-8 bg-amber-400/60"></span>}
+            </div>
+            <h1 className="relative text-5xl lg:text-6xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
+              {language === "EN" ? (
+                <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Business</span></>
+              ) : (
+                <>Sokong <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
+              )}
+            </h1>
+            <p className="relative text-slate-500 text-base mt-4 font-sans leading-relaxed max-w-xl">
+              {t("order_authentic")}
+            </p>
+          </motion.div>
+
+          <AnimatePresence>
+            {heroShifted && (
+              <motion.div
+                initial={{ opacity: 0, x: 60 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 60 }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: 0.15 }}
+                className="w-[38%] shrink-0"
+              >
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                  {/* Shop header: TamuBah branding + logo */}
+                  <div className="flex items-center gap-3 px-5 pt-5 pb-3">
+                    <img src={tamubahLogo} alt="TamuBah" className="w-11 h-11 rounded-xl object-cover shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-display font-bold text-slate-900 text-lg leading-tight truncate">TamuBah</p>
+                      <p className="text-[11px] text-emerald-700 font-semibold uppercase tracking-wide">
+                        {language === "EN" ? "Live on the marketplace" : "Aktif di pasaran"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Product/service showcase ticker — real live listings,
+                      one visible at a time: 1s slide transition, then static
+                      for 2s, looping continuously (see heroShowcaseIndex effect above). */}
+                  <div className="relative h-24 bg-gradient-to-br from-emerald-50 to-amber-50/50 mx-3 mb-3 rounded-2xl overflow-hidden">
+                    {heroShowcaseProducts.length > 0 ? (
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={heroShowcaseProducts[heroShowcaseIndex]?.id}
+                          initial={{ x: "100%", opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ x: "-100%", opacity: 0 }}
+                          transition={{ duration: 1, ease: "easeInOut" }}
+                          className="absolute inset-0 flex items-center gap-3 px-3"
+                        >
+                          <img
+                            src={heroShowcaseProducts[heroShowcaseIndex]?.imageUrl}
+                            alt={heroShowcaseProducts[heroShowcaseIndex]?.title}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 shadow-sm"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">{heroShowcaseProducts[heroShowcaseIndex]?.title}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{heroShowcaseProducts[heroShowcaseIndex]?.businessName}</p>
+                            <p className="text-xs font-bold text-emerald-700 mt-0.5">RM {heroShowcaseProducts[heroShowcaseIndex]?.price?.toFixed(2)}</p>
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <p className="text-xs text-slate-400">
+                          {language === "EN" ? "New listings coming soon" : "Penyenaraian baharu tidak lama lagi"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="px-5 pb-4">
+                    <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
+                      {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Minimalist Filter Bar: category icons + location */}
