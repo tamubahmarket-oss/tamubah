@@ -3,7 +3,7 @@ import {
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
   X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
-  Share2, Check, Store, Star, Navigation
+  Share2, Check, Store, Star, Navigation, Play, Pause
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, SABAH_LOCATIONS } from "../types";
@@ -30,13 +30,15 @@ interface HeroShopCardProps {
   heroShowcaseProducts: Product[];
   heroShowcaseIndex: number;
   tickerHeightClass: string;
+  isAudioPlaying?: boolean;
+  onPlayAudio?: () => void;
 }
 
 // The hero's "shop window" card — a small icon-badge for the TamuBah brand
 // (not a full header) so almost all of the card's height goes to actually
 // showing off a real product/service, like looking through a shop window
 // rather than reading a business card.
-function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass }: HeroShopCardProps) {
+function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass, isAudioPlaying, onPlayAudio }: HeroShopCardProps) {
   const current = heroShowcaseProducts[heroShowcaseIndex];
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
@@ -85,9 +87,20 @@ function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, ticke
       </div>
 
       <div className="px-4 py-3">
-        <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
-          {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
-        </a>
+        <button 
+          onClick={onPlayAudio}
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit hover:bg-emerald-50 px-2 py-1 rounded transition"
+        >
+          {isAudioPlaying ? (
+            <>
+              <Pause className="w-3 h-3" /> {language === "EN" ? "Pause" : "Berhenti"}
+            </>
+          ) : (
+            <>
+              <Play className="w-3 h-3" /> {language === "EN" ? "Play Music" : "Main Musik"}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -151,6 +164,25 @@ export default function MarketGrid({
   // Auto-play background music on page load
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [audioUnmuted, setAudioUnmuted] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  const handlePlayAudio = () => {
+    if (!audioRef.current) return;
+    
+    if (isAudioPlaying) {
+      // Pause
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    } else {
+      // Play
+      audioRef.current.muted = false;
+      setAudioUnmuted(true);
+      audioRef.current.play().catch((err) => {
+        console.log("Audio play failed:", err);
+      });
+      setIsAudioPlaying(true);
+    }
+  };
 
   useEffect(() => {
     // Create or get audio element
@@ -165,9 +197,22 @@ export default function MarketGrid({
     const audio = audioRef.current;
     
     // Try to play with muted audio (should work)
-    audio.play().catch((err) => {
-      console.log("Audio autoplay blocked or failed:", err);
-    });
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        setIsAudioPlaying(true);
+      }).catch((err) => {
+        console.log("Audio autoplay blocked or failed:", err);
+        setIsAudioPlaying(false);
+      });
+    }
+
+    // Add event listeners to track play/pause state
+    const handlePlay = () => setIsAudioPlaying(true);
+    const handlePause = () => setIsAudioPlaying(false);
+    
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
 
     // Unmute on first user interaction
     const handleUserInteraction = () => {
@@ -186,6 +231,8 @@ export default function MarketGrid({
     document.addEventListener('keypress', handleUserInteraction);
 
     return () => {
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
       document.removeEventListener('keypress', handleUserInteraction);
@@ -501,6 +548,8 @@ export default function MarketGrid({
                 heroShowcaseProducts={heroShowcaseProducts}
                 heroShowcaseIndex={heroShowcaseIndex}
                 tickerHeightClass="h-56"
+                isAudioPlaying={isAudioPlaying}
+                onPlayAudio={handlePlayAudio}
               />
             </motion.div>
           )}
@@ -552,6 +601,8 @@ export default function MarketGrid({
                   heroShowcaseProducts={heroShowcaseProducts}
                   heroShowcaseIndex={heroShowcaseIndex}
                   tickerHeightClass="h-72"
+                  isAudioPlaying={isAudioPlaying}
+                  onPlayAudio={handlePlayAudio}
                 />
               </motion.div>
             )}
