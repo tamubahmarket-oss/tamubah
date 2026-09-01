@@ -147,6 +147,18 @@ export default function MarketGrid({
     }, 3000);
     return () => clearInterval(interval);
   }, [heroShowcaseProducts.length]);
+
+  // Auto-play background music on page load
+  useEffect(() => {
+    const audio = new Audio('/paling-cantik-di-dunia- 3.mp3');
+    audio.play().catch((err) => {
+      console.log("Audio autoplay blocked or failed:", err);
+    });
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
   const setSelectedLocation = (loc: string) => {
