@@ -866,6 +866,24 @@ export default function MarketGrid({
                       <span className="line-clamp-1">{p.availableArea}</span>
                     </span>
 
+                    {/* Order-only badge if product is available by order only */}
+                    {p.isOrderOnly && (
+                      <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg p-1.5 flex items-start gap-1 text-[8px] leading-snug">
+                        <div className="mt-0.5 shrink-0 text-indigo-600 font-bold">📋</div>
+                        <div>
+                          <div className="font-extrabold text-indigo-900">Order Only</div>
+                          <div className="text-indigo-700">Lead: {p.orderLeadTime}</div>
+                          {p.fulfillmentMethods && (
+                            <div className="text-indigo-600 text-[7px] mt-0.5">
+                              {p.fulfillmentMethods.includes("delivery") && "🚚 Delivery "}
+                              {p.fulfillmentMethods.includes("delivery") && p.fulfillmentMethods.includes("pickup") && "& "}
+                              {p.fulfillmentMethods.includes("pickup") && "🏪 Pickup"}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Report Warnings if seller has been flagged */}
                     {p.reportCount && p.reportCount > 0 ? (
                       <div className="bg-rose-50 border border-rose-100 text-rose-800 rounded-lg p-1.5 flex items-start gap-1 text-[8px] leading-snug">

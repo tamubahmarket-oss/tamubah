@@ -46,6 +46,10 @@ export interface Product {
   sortOrder?: number;
   sellerId: string;
   createdAt: string;
+  // Order-only availability
+  isOrderOnly?: boolean;
+  orderLeadTime?: string; // e.g. "2-3 days", "Same day", "1 week"
+  fulfillmentMethods?: ("delivery" | "pickup" | "both")[]; // fulfillment options
   // Enriched fields from server join:
   sellerName: string;
   businessName: string;

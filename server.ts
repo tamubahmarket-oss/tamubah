@@ -535,6 +535,10 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
     sortOrder: p.sort_order ?? 0,
     sellerId: p.seller_id,
     createdAt: p.created_at,
+    // Order-only fields
+    isOrderOnly: p.is_order_only || false,
+    orderLeadTime: p.order_lead_time || undefined,
+    fulfillmentMethods: p.fulfillment_methods || undefined,
     ...extra,
   };
 }
@@ -3115,7 +3119,7 @@ async function startServer() {
 
   app.post("/api/products", async (req, res) => {
     try {
-      const { title, category, description, price, imageUrl, isAvailable, sellerId } = req.body;
+      const { title, category, description, price, imageUrl, isAvailable, sellerId, isOrderOnly, orderLeadTime, fulfillmentMethods } = req.body;
       if (!title || !category || !description || !price || !imageUrl || !sellerId) {
         return res.status(400).json({ error: "All product fields are required, including an uploaded image." });
       }
@@ -3134,6 +3138,10 @@ async function startServer() {
         price: parseFloat(price),
         image_url: imageUrl,
         is_available: isAvailable !== undefined ? isAvailable : true,
+        // Order-only fields
+        is_order_only: isOrderOnly || false,
+        order_lead_time: isOrderOnly ? orderLeadTime : null,
+        fulfillment_methods: isOrderOnly ? fulfillmentMethods : null,
         // Sellers may only have 1 published (live in the market) product at a
         // time. If they already have one, this new product is created but
         // stays unpublished in their shop until they free up their slot or
@@ -3157,7 +3165,7 @@ async function startServer() {
   app.patch("/api/products/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { sellerId, title, category, description, price, imageUrl } = req.body;
+      const { sellerId, title, category, description, price, imageUrl, isOrderOnly, orderLeadTime, fulfillmentMethods } = req.body;
 
       if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
       if (!title || !category || !description || !price || !imageUrl) {
@@ -3184,6 +3192,9 @@ async function startServer() {
           description,
           price: numericPrice,
           image_url: imageUrl,
+          is_order_only: isOrderOnly || false,
+          order_lead_time: isOrderOnly ? orderLeadTime : null,
+          fulfillment_methods: isOrderOnly ? fulfillmentMethods : null,
         })
         .eq("id", id)
         .select("*")
