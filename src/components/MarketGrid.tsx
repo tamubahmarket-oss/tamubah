@@ -198,7 +198,7 @@ export default function MarketGrid({
     // Create or get audio element
     if (!audioRef.current) {
       const audio = new Audio();
-      audio.src = '/paling-cantik-di-dunia-%203.mp3'; // URL encoded filename
+      audio.src = '/market-music.mp3'; // Simple filename without spaces
       audio.muted = true; // Start muted to bypass autoplay restrictions
       audio.loop = true;
       audio.volume = 0.5;
