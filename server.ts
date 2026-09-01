@@ -2960,6 +2960,12 @@ async function startServer() {
       const showAll = req.query.showAll === "true";
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 100;
+      const sortBy = (req.query.sortBy as string) || "default"; // default, newest, oldest, alphabetical, popular, rotation
+
+      // Prevent caching for search results
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
 
       const [{ data: productRows, error: prodErr }, { data: sellerRows, error: sellerErr }, { data: reportRows }, { data: reviewRows }] =
         await Promise.all([
@@ -3012,14 +3018,51 @@ async function startServer() {
       if (!showAll) enriched = enriched.filter((p: any) => !!p.sellerIsApproved);
       if (!showAll) enriched = enriched.filter((p: any) => !!p.isPublished);
 
+      // Apply sorting based on sortBy parameter
       enriched.sort((a: any, b: any) => {
-        const pinA = a.isPinned ? 1 : 0;
-        const pinB = b.isPinned ? 1 : 0;
-        if (pinA !== pinB) return pinB - pinA;
-        const orderA = a.sortOrder ?? 0;
-        const orderB = b.sortOrder ?? 0;
-        if (orderA !== orderB) return orderA - orderB;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // Always respect pinned products first (unless rotation mode)
+        if (sortBy !== "rotation") {
+          const pinA = a.isPinned ? 1 : 0;
+          const pinB = b.isPinned ? 1 : 0;
+          if (pinA !== pinB) return pinB - pinA;
+        }
+
+        switch (sortBy) {
+          case "newest":
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          
+          case "oldest":
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          
+          case "alphabetical":
+            return a.title.localeCompare(b.title);
+          
+          case "popular":
+            // Sort by review count, then by rating
+            if (b.sellerReviewCount !== a.sellerReviewCount) {
+              return b.sellerReviewCount - a.sellerReviewCount;
+            }
+            return b.sellerAverageRating - a.sellerAverageRating;
+          
+          case "rotation":
+            // Daily rotation: use a seed based on today's date and product ID
+            // Products rotate each day so everyone gets fair exposure
+            const today = new Date();
+            const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
+            
+            // Simple hash function using product ID and day of year
+            const hashA = (parseInt(a.id.slice(0, 8), 16) + dayOfYear) % 10000;
+            const hashB = (parseInt(b.id.slice(0, 8), 16) + dayOfYear) % 10000;
+            return hashB - hashA;
+          
+          case "default":
+          default:
+            // Default: pinned, then sortOrder, then newest
+            const orderA = a.sortOrder ?? 0;
+            const orderB = b.sortOrder ?? 0;
+            if (orderA !== orderB) return orderA - orderB;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
       });
 
       const startIndex = (page - 1) * limit;

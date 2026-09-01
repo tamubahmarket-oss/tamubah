@@ -378,6 +378,7 @@ export default function MarketGrid({
         search: debouncedSearchQuery,
         category: selectedCategory,
         location: selectedLocation,
+        sortBy: "rotation", // Use daily rotation for fairness
       });
       const response = await fetch(`/api/products?${queryParams.toString()}`);
       const data = await response.json();
@@ -395,6 +396,11 @@ export default function MarketGrid({
       setLocalLoading(false);
     }
   };
+
+  // Scroll to top when page changes or filters change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page, debouncedSearchQuery, selectedCategory, selectedLocation]);
 
   // Reset page to 1 when filters change
   useEffect(() => {

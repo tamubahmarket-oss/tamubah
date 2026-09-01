@@ -157,6 +157,11 @@ export default function App() {
     }
   }, []);
 
+  // Scroll to top when tab changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeTab]);
+
   // Force activeTab to "market" if not logged in
   useEffect(() => {
     if (!currentSeller && (activeTab === "shop" || activeTab === "community")) {

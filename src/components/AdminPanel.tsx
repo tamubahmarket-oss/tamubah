@@ -247,6 +247,7 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
   const [sellerSearch, setSellerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [sellerFilter, setSellerFilter] = useState<"all" | "verified" | "unverified">("all");
+  const [productSortBy, setProductSortBy] = useState<"default" | "newest" | "oldest" | "alphabetical" | "popular">("default");
 
   // --- Broadcast email ---
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -451,7 +452,8 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
         page: productsPage.toString(),
         limit: "50",
         search: debouncedProductSearch,
-        showAll: "true"
+        showAll: "true",
+        sortBy: productSortBy,
       });
       const res = await fetch(`/api/products?${queryParams.toString()}`);
       const data = await res.json();
@@ -522,7 +524,12 @@ export default function AdminPanel({ onRefreshMarket, onLockAdmin }: AdminPanelP
 
   useEffect(() => {
     fetchProductsData();
-  }, [productsPage, debouncedProductSearch]);
+  }, [productsPage, debouncedProductSearch, productSortBy]);
+
+  useEffect(() => {
+    // Reset to page 1 when sort changes
+    setProductsPage(1);
+  }, [productSortBy]);
 
   useEffect(() => {
     fetchAdminData();
@@ -2220,6 +2227,22 @@ spec:
                       <option value="pinned">Pinned Revisions (Featured)</option>
                       <option value="regular">Regular Revisions Only</option>
                     </select>
+                    
+                    <div className="border-l border-[#5f6368] pl-2 ml-1"></div>
+                    
+                    <select
+                      value={productSortBy}
+                      onChange={(e: any) => setProductSortBy(e.target.value)}
+                      className="border border-[#5f6368] text-xs rounded bg-[#202124] p-1.5 focus:outline-none focus:border-[#8ab4f8] font-medium text-[#e8eaed]"
+                      title="Sort products by different criteria"
+                    >
+                      <option value="default">Sort: Default</option>
+                      <option value="newest">Sort: Newest First</option>
+                      <option value="oldest">Sort: Oldest First</option>
+                      <option value="alphabetical">Sort: A-Z</option>
+                      <option value="popular">Sort: Most Popular</option>
+                    </select>
+                    
                     <div className="flex items-center border border-[#5f6368] rounded overflow-hidden shrink-0">
                       <button
                         type="button"
