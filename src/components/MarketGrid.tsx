@@ -149,16 +149,48 @@ export default function MarketGrid({
   }, [heroShowcaseProducts.length]);
 
   // Auto-play background music on page load
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [audioUnmuted, setAudioUnmuted] = useState(false);
+
   useEffect(() => {
-    const audio = new Audio('/paling-cantik-di-dunia- 3.mp3');
+    // Create or get audio element
+    if (!audioRef.current) {
+      const audio = new Audio('/paling-cantik-di-dunia- 3.mp3');
+      audio.muted = true; // Start muted to bypass autoplay restrictions
+      audio.loop = true;
+      audio.volume = 0.5;
+      audioRef.current = audio;
+    }
+
+    const audio = audioRef.current;
+    
+    // Try to play with muted audio (should work)
     audio.play().catch((err) => {
       console.log("Audio autoplay blocked or failed:", err);
     });
-    return () => {
-      audio.pause();
-      audio.currentTime = 0;
+
+    // Unmute on first user interaction
+    const handleUserInteraction = () => {
+      if (audio && !audioUnmuted) {
+        audio.muted = false;
+        setAudioUnmuted(true);
+        // Remove listeners after first interaction
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
+        document.removeEventListener('keypress', handleUserInteraction);
+      }
     };
-  }, []);
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('keypress', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keypress', handleUserInteraction);
+    };
+  }, [audioUnmuted]);
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
   const setSelectedLocation = (loc: string) => {
