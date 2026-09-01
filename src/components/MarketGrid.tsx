@@ -167,31 +167,54 @@ export default function MarketGrid({
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   const handlePlayAudio = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      console.error('Audio element not initialized');
+      return;
+    }
     
     if (isAudioPlaying) {
       // Pause
       audioRef.current.pause();
+      console.log('Audio paused');
       setIsAudioPlaying(false);
     } else {
       // Play
       audioRef.current.muted = false;
       setAudioUnmuted(true);
-      audioRef.current.play().catch((err) => {
-        console.log("Audio play failed:", err);
-      });
-      setIsAudioPlaying(true);
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log('Audio started playing via button');
+          setIsAudioPlaying(true);
+        }).catch((err) => {
+          console.error("Audio play failed:", err);
+          setIsAudioPlaying(false);
+        });
+      }
     }
   };
 
   useEffect(() => {
     // Create or get audio element
     if (!audioRef.current) {
-      const audio = new Audio('/paling-cantik-di-dunia- 3.mp3');
+      const audio = new Audio();
+      audio.src = '/paling-cantik-di-dunia-%203.mp3'; // URL encoded filename
       audio.muted = true; // Start muted to bypass autoplay restrictions
       audio.loop = true;
       audio.volume = 0.5;
+      audio.crossOrigin = 'anonymous';
+      
+      // Add error event listener
+      audio.addEventListener('error', (e) => {
+        console.error('Audio loading error:', audio.error);
+      });
+      
+      audio.addEventListener('loadeddata', () => {
+        console.log('Audio loaded successfully');
+      });
+      
       audioRef.current = audio;
+      console.log('Audio element created with src:', audio.src);
     }
 
     const audio = audioRef.current;
@@ -200,9 +223,10 @@ export default function MarketGrid({
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.then(() => {
+        console.log('Audio started playing');
         setIsAudioPlaying(true);
       }).catch((err) => {
-        console.log("Audio autoplay blocked or failed:", err);
+        console.error("Audio autoplay blocked or failed:", err);
         setIsAudioPlaying(false);
       });
     }
