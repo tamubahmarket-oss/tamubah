@@ -5,7 +5,7 @@ import {
   Mail, Globe
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
-import commissionComparisonPoster from "../assets/images/tamubah-commission-comparison-poster.webp";
+import FeeComparisonCalculator from "./FeeComparisonCalculator";
 
 interface HomePageProps {
   onLaunchMarket: () => void;
@@ -115,18 +115,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
           </h2>
         </div>
 
-        <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-100">
-          <img
-            src={commissionComparisonPoster}
-            alt={
-              isEN
-                ? "Comparison of TamuBah's flat RM20/month fee against 15–30% commission platforms, showing sellers keep 100% of every sale"
-                : "Perbandingan yuran rata TamuBah RM20/bulan berbanding platform komisyen 15–30%, menunjukkan penjual menyimpan 100% setiap jualan"
-            }
-            className="w-full h-auto block"
-            loading="lazy"
-          />
-        </div>
+        <FeeComparisonCalculator isEN={isEN} />
 
         <p className="text-slate-500 text-sm text-center leading-relaxed max-w-3xl mx-auto mt-6">
           {isEN ? (
