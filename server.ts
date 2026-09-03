@@ -535,10 +535,6 @@ function productToApi(p: ProductRow, extra: Record<string, any> = {}) {
     sortOrder: p.sort_order ?? 0,
     sellerId: p.seller_id,
     createdAt: p.created_at,
-    // Order-only fields
-    isOrderOnly: p.is_order_only || false,
-    orderLeadTime: p.order_lead_time || undefined,
-    fulfillmentMethods: p.fulfillment_methods || undefined,
     ...extra,
   };
 }
@@ -2962,14 +2958,9 @@ async function startServer() {
       const category = (req.query.category as string) || "All";
       const location = (req.query.location as string) || "All";
       const showAll = req.query.showAll === "true";
+      const sellerIdFilter = (req.query.sellerId as string) || "";
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 100;
-      const sortBy = (req.query.sortBy as string) || "default"; // default, newest, oldest, alphabetical, popular, rotation
-
-      // Prevent caching for search results
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
 
       const [{ data: productRows, error: prodErr }, { data: sellerRows, error: sellerErr }, { data: reportRows }, { data: reviewRows }] =
         await Promise.all([
@@ -3021,52 +3012,22 @@ async function startServer() {
       if (location && location !== "All") enriched = enriched.filter((p: any) => p.availableArea === location);
       if (!showAll) enriched = enriched.filter((p: any) => !!p.sellerIsApproved);
       if (!showAll) enriched = enriched.filter((p: any) => !!p.isPublished);
+      // Applied BEFORE pagination (not after) — a seller looking at their own
+      // catalog must see every one of their own listings, not just whichever
+      // happen to fall inside the marketplace-wide "top 100 newest" page.
+      // This was a real bug: a seller's own older products could be silently
+      // pushed off the page entirely once 100+ OTHER sellers' products were
+      // newer, even though the seller's dashboard requested "showAll".
+      if (sellerIdFilter) enriched = enriched.filter((p: any) => p.sellerId === sellerIdFilter);
 
-      // Apply sorting based on sortBy parameter
       enriched.sort((a: any, b: any) => {
-        // Always respect pinned products first (unless rotation mode)
-        if (sortBy !== "rotation") {
-          const pinA = a.isPinned ? 1 : 0;
-          const pinB = b.isPinned ? 1 : 0;
-          if (pinA !== pinB) return pinB - pinA;
-        }
-
-        switch (sortBy) {
-          case "newest":
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          
-          case "oldest":
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          
-          case "alphabetical":
-            return a.title.localeCompare(b.title);
-          
-          case "popular":
-            // Sort by review count, then by rating
-            if (b.sellerReviewCount !== a.sellerReviewCount) {
-              return b.sellerReviewCount - a.sellerReviewCount;
-            }
-            return b.sellerAverageRating - a.sellerAverageRating;
-          
-          case "rotation":
-            // Daily rotation: use a seed based on today's date and product ID
-            // Products rotate each day so everyone gets fair exposure
-            const today = new Date();
-            const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
-            
-            // Simple hash function using product ID and day of year
-            const hashA = (parseInt(a.id.slice(0, 8), 16) + dayOfYear) % 10000;
-            const hashB = (parseInt(b.id.slice(0, 8), 16) + dayOfYear) % 10000;
-            return hashB - hashA;
-          
-          case "default":
-          default:
-            // Default: pinned, then sortOrder, then newest
-            const orderA = a.sortOrder ?? 0;
-            const orderB = b.sortOrder ?? 0;
-            if (orderA !== orderB) return orderA - orderB;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
+        const pinA = a.isPinned ? 1 : 0;
+        const pinB = b.isPinned ? 1 : 0;
+        if (pinA !== pinB) return pinB - pinA;
+        const orderA = a.sortOrder ?? 0;
+        const orderB = b.sortOrder ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
 
       const startIndex = (page - 1) * limit;
@@ -3119,7 +3080,7 @@ async function startServer() {
 
   app.post("/api/products", async (req, res) => {
     try {
-      const { title, category, description, price, imageUrl, isAvailable, sellerId, isOrderOnly, orderLeadTime, fulfillmentMethods } = req.body;
+      const { title, category, description, price, imageUrl, isAvailable, sellerId } = req.body;
       if (!title || !category || !description || !price || !imageUrl || !sellerId) {
         return res.status(400).json({ error: "All product fields are required, including an uploaded image." });
       }
@@ -3138,10 +3099,6 @@ async function startServer() {
         price: parseFloat(price),
         image_url: imageUrl,
         is_available: isAvailable !== undefined ? isAvailable : true,
-        // Order-only fields
-        is_order_only: isOrderOnly || false,
-        order_lead_time: isOrderOnly ? orderLeadTime : null,
-        fulfillment_methods: isOrderOnly ? fulfillmentMethods : null,
         // Sellers may only have 1 published (live in the market) product at a
         // time. If they already have one, this new product is created but
         // stays unpublished in their shop until they free up their slot or
@@ -3165,7 +3122,7 @@ async function startServer() {
   app.patch("/api/products/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { sellerId, title, category, description, price, imageUrl, isOrderOnly, orderLeadTime, fulfillmentMethods } = req.body;
+      const { sellerId, title, category, description, price, imageUrl } = req.body;
 
       if (!sellerId) return res.status(400).json({ error: "sellerId is required." });
       if (!title || !category || !description || !price || !imageUrl) {
@@ -3192,9 +3149,6 @@ async function startServer() {
           description,
           price: numericPrice,
           image_url: imageUrl,
-          is_order_only: isOrderOnly || false,
-          order_lead_time: isOrderOnly ? orderLeadTime : null,
-          fulfillment_methods: isOrderOnly ? fulfillmentMethods : null,
         })
         .eq("id", id)
         .select("*")

@@ -345,11 +345,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [price, setPrice] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [isAvailable, setIsAvailable] = useState(true);
-  // Order-only fields for create form
-  const [isOrderOnly, setIsOrderOnly] = useState(false);
-  const [orderLeadTime, setOrderLeadTime] = useState("");
-  const [fulfillmentDelivery, setFulfillmentDelivery] = useState(false);
-  const [fulfillmentPickup, setFulfillmentPickup] = useState(false);
 
   // --- Edit Product modal state (kept separate from the "create" form
   // state above so editing an existing listing never interferes with
@@ -364,11 +359,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const [editDragActive, setEditDragActive] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  // Order-only fields for edit form
-  const [editIsOrderOnly, setEditIsOrderOnly] = useState(false);
-  const [editOrderLeadTime, setEditOrderLeadTime] = useState("");
-  const [editFulfillmentDelivery, setEditFulfillmentDelivery] = useState(false);
-  const [editFulfillmentPickup, setEditFulfillmentPickup] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
 
@@ -569,10 +559,16 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
   const fetchMyProducts = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/products?showAll=true");
+      // Filter by sellerId server-side (before pagination is applied) so
+      // every one of this seller's own listings is returned, regardless of
+      // how many other sellers' newer products exist across the whole
+      // marketplace. A high limit is also passed as a safety margin.
+      const response = await fetch(`/api/products?showAll=true&sellerId=${encodeURIComponent(seller.id)}&limit=1000`);
       const data = await response.json();
       if (response.ok) {
-        // Filter products made by this specific seller
+        // Defensive: keep the client-side filter too, in case of any edge
+        // case, but the server-side sellerId filter above is what actually
+        // fixes the bug where older products got pushed off the page.
         const myProducts = data.filter((p: Product) => p.sellerId === seller.id);
         setProducts(myProducts);
       } else {
@@ -686,10 +682,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
     setEditDescription(product.description);
     setEditPrice(String(product.price));
     setEditImageUrl(product.imageUrl);
-    setEditIsOrderOnly(product.isOrderOnly || false);
-    setEditOrderLeadTime(product.orderLeadTime || "");
-    setEditFulfillmentDelivery((product.fulfillmentMethods || []).includes("delivery"));
-    setEditFulfillmentPickup((product.fulfillmentMethods || []).includes("pickup"));
     setEditError(null);
   };
 
@@ -707,17 +699,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       setEditError("All fields are required. Remember, a picture is a MUST!");
       return;
     }
-    
-    if (editIsOrderOnly && !editOrderLeadTime.trim()) {
-      setEditError("Please specify the lead time for order-only products.");
-      return;
-    }
-    
-    if (editIsOrderOnly && !editFulfillmentDelivery && !editFulfillmentPickup) {
-      setEditError("Please select at least one fulfillment method (Delivery, Pickup, or Both).");
-      return;
-    }
-    
     if (editImageUploading) {
       setEditError("Please wait for the photo to finish uploading.");
       return;
@@ -730,10 +711,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
 
     setEditLoading(true);
     try {
-      const fulfillmentMethods: ("delivery" | "pickup")[] = [];
-      if (editFulfillmentDelivery) fulfillmentMethods.push("delivery");
-      if (editFulfillmentPickup) fulfillmentMethods.push("pickup");
-
       const response = await fetch(`/api/products/${editingProduct.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -744,9 +721,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
           description: editDescription,
           price: numericPrice,
           imageUrl: editImageUrl,
-          isOrderOnly: editIsOrderOnly,
-          orderLeadTime: editIsOrderOnly ? editOrderLeadTime : null,
-          fulfillmentMethods: editIsOrderOnly ? fulfillmentMethods : null,
         }),
       });
       const data = await response.json();
@@ -792,16 +766,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       return;
     }
 
-    if (isOrderOnly && !orderLeadTime.trim()) {
-      setError("Please specify the lead time for order-only products.");
-      return;
-    }
-    
-    if (isOrderOnly && !fulfillmentDelivery && !fulfillmentPickup) {
-      setError("Please select at least one fulfillment method (Delivery, Pickup, or Both).");
-      return;
-    }
-
     if (imageUploading) {
       setError("Please wait for the photo to finish uploading.");
       return;
@@ -816,10 +780,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
     setLoading(true);
 
     try {
-      const fulfillmentMethods: ("delivery" | "pickup")[] = [];
-      if (fulfillmentDelivery) fulfillmentMethods.push("delivery");
-      if (fulfillmentPickup) fulfillmentMethods.push("pickup");
-
       const response = await fetch("/api/products", {
         method: "POST",
         headers: {
@@ -833,9 +793,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
           imageUrl,
           isAvailable,
           sellerId: seller.id,
-          isOrderOnly,
-          orderLeadTime: isOrderOnly ? orderLeadTime : null,
-          fulfillmentMethods: isOrderOnly ? fulfillmentMethods : null,
         }),
       });
 
@@ -852,10 +809,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
       setPrice("");
       setImageUrl("");
       setIsAvailable(true);
-      setIsOrderOnly(false);
-      setOrderLeadTime("");
-      setFulfillmentDelivery(false);
-      setFulfillmentPickup(false);
 
       // Refresh listings
       await fetchMyProducts();
@@ -1272,67 +1225,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                     <ToggleLeft className="w-10 h-10 text-slate-300" />
                   )}
                 </button>
-              </div>
-
-              {/* Order-only availability section */}
-              <div className="border-t border-slate-200 pt-4 mt-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
-                    id="orderOnly"
-                    checked={isOrderOnly}
-                    onChange={(e) => setIsOrderOnly(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-                  />
-                  <label htmlFor="orderOnly" className="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
-                    📋 Available by Order Only
-                  </label>
-                </div>
-
-                {isOrderOnly && (
-                  <div className="space-y-3 bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                        Lead Time <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g., 2-3 days, Same day, 1 week, Custom order"
-                        value={orderLeadTime}
-                        onChange={(e) => setOrderLeadTime(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
-                      />
-                      <p className="text-[10px] text-slate-500 mt-1">How long until order is ready?</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">
-                        Fulfillment Method <span className="text-red-500">*</span>
-                      </label>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={fulfillmentDelivery}
-                            onChange={(e) => setFulfillmentDelivery(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                          <span className="text-xs font-medium text-slate-700">🚚 Delivery</span>
-                        </label>
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={fulfillmentPickup}
-                            onChange={(e) => setFulfillmentPickup(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                          <span className="text-xs font-medium text-slate-700">🏪 Pickup/Collection</span>
-                        </label>
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-1.5">Select one or both options</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <button
@@ -2465,67 +2357,6 @@ export default function ShopDashboard({ seller, onLogout, onRefreshMarket, onUpd
                         PNG, JPG, JPEG up to 5MB
                       </span>
                     </label>
-                  </div>
-                )}
-              </div>
-
-              {/* Order-only availability section */}
-              <div className="border-t border-slate-200 pt-4 mt-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
-                    id="editOrderOnly"
-                    checked={editIsOrderOnly}
-                    onChange={(e) => setEditIsOrderOnly(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
-                  />
-                  <label htmlFor="editOrderOnly" className="text-xs font-bold text-slate-700 uppercase tracking-wider cursor-pointer">
-                    📋 Available by Order Only
-                  </label>
-                </div>
-
-                {editIsOrderOnly && (
-                  <div className="space-y-3 bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-                        Lead Time <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g., 2-3 days, Same day, 1 week, Custom order"
-                        value={editOrderLeadTime}
-                        onChange={(e) => setEditOrderLeadTime(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition text-sm bg-white"
-                      />
-                      <p className="text-[10px] text-slate-500 mt-1">How long until order is ready?</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">
-                        Fulfillment Method <span className="text-red-500">*</span>
-                      </label>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editFulfillmentDelivery}
-                            onChange={(e) => setEditFulfillmentDelivery(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                          <span className="text-xs font-medium text-slate-700">🚚 Delivery</span>
-                        </label>
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editFulfillmentPickup}
-                            onChange={(e) => setEditFulfillmentPickup(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
-                          />
-                          <span className="text-xs font-medium text-slate-700">🏪 Pickup/Collection</span>
-                        </label>
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-1.5">Select one or both options</p>
-                    </div>
                   </div>
                 )}
               </div>
