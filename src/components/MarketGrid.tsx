@@ -3,7 +3,7 @@ import {
   MapPin, Phone, Layers, AlertCircle, ShoppingBag, 
   ExternalLink, Grid, ArrowUpRight, HelpCircle,
   X, User, ShieldCheck, ShieldAlert, Flag, AlertTriangle,
-  Share2, Check, Store, Star, Navigation, Play, Pause
+  Share2, Check, Store, Star, Navigation
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, SABAH_LOCATIONS } from "../types";
@@ -30,15 +30,13 @@ interface HeroShopCardProps {
   heroShowcaseProducts: Product[];
   heroShowcaseIndex: number;
   tickerHeightClass: string;
-  isAudioPlaying?: boolean;
-  onPlayAudio?: () => void;
 }
 
 // The hero's "shop window" card — a small icon-badge for the TamuBah brand
 // (not a full header) so almost all of the card's height goes to actually
 // showing off a real product/service, like looking through a shop window
 // rather than reading a business card.
-function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass, isAudioPlaying, onPlayAudio }: HeroShopCardProps) {
+function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass }: HeroShopCardProps) {
   const current = heroShowcaseProducts[heroShowcaseIndex];
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
@@ -87,20 +85,9 @@ function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, ticke
       </div>
 
       <div className="px-4 py-3">
-        <button 
-          onClick={onPlayAudio}
-          className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit hover:bg-emerald-50 px-2 py-1 rounded transition"
-        >
-          {isAudioPlaying ? (
-            <>
-              <Pause className="w-3 h-3" /> {language === "EN" ? "Pause" : "Berhenti"}
-            </>
-          ) : (
-            <>
-              <Play className="w-3 h-3" /> {language === "EN" ? "Play Music" : "Main Musik"}
-            </>
-          )}
-        </button>
+        <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
+          {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
+        </a>
       </div>
     </div>
   );
@@ -160,108 +147,6 @@ export default function MarketGrid({
     }, 3000);
     return () => clearInterval(interval);
   }, [heroShowcaseProducts.length]);
-
-  // Auto-play background music on page load
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const [audioUnmuted, setAudioUnmuted] = useState(false);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-
-  const handlePlayAudio = () => {
-    if (!audioRef.current) {
-      console.error('Audio element not initialized');
-      return;
-    }
-    
-    if (isAudioPlaying) {
-      // Pause
-      audioRef.current.pause();
-      console.log('Audio paused');
-      setIsAudioPlaying(false);
-    } else {
-      // Play
-      audioRef.current.muted = false;
-      setAudioUnmuted(true);
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          console.log('Audio started playing via button');
-          setIsAudioPlaying(true);
-        }).catch((err) => {
-          console.error("Audio play failed:", err);
-          setIsAudioPlaying(false);
-        });
-      }
-    }
-  };
-
-  useEffect(() => {
-    // Create or get audio element
-    if (!audioRef.current) {
-      const audio = new Audio();
-      audio.src = '/market-music.mp3'; // Simple filename without spaces
-      audio.muted = true; // Start muted to bypass autoplay restrictions
-      audio.loop = true;
-      audio.volume = 0.5;
-      audio.crossOrigin = 'anonymous';
-      
-      // Add error event listener
-      audio.addEventListener('error', (e) => {
-        console.error('Audio loading error:', audio.error);
-      });
-      
-      audio.addEventListener('loadeddata', () => {
-        console.log('Audio loaded successfully');
-      });
-      
-      audioRef.current = audio;
-      console.log('Audio element created with src:', audio.src);
-    }
-
-    const audio = audioRef.current;
-    
-    // Try to play with muted audio (should work)
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        console.log('Audio started playing');
-        setIsAudioPlaying(true);
-      }).catch((err) => {
-        console.error("Audio autoplay blocked or failed:", err);
-        setIsAudioPlaying(false);
-      });
-    }
-
-    // Add event listeners to track play/pause state
-    const handlePlay = () => setIsAudioPlaying(true);
-    const handlePause = () => setIsAudioPlaying(false);
-    
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-
-    // Unmute on first user interaction
-    const handleUserInteraction = () => {
-      if (audio && !audioUnmuted) {
-        audio.muted = false;
-        setAudioUnmuted(true);
-        // Remove listeners after first interaction
-        document.removeEventListener('click', handleUserInteraction);
-        document.removeEventListener('touchstart', handleUserInteraction);
-        document.removeEventListener('keypress', handleUserInteraction);
-      }
-    };
-
-    document.addEventListener('click', handleUserInteraction);
-    document.addEventListener('touchstart', handleUserInteraction);
-    document.addEventListener('keypress', handleUserInteraction);
-
-    return () => {
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-      document.removeEventListener('keypress', handleUserInteraction);
-    };
-  }, [audioUnmuted]);
   
   const selectedLocation = propSelectedLocation !== undefined ? propSelectedLocation : localLocation;
   const setSelectedLocation = (loc: string) => {
@@ -378,7 +263,6 @@ export default function MarketGrid({
         search: debouncedSearchQuery,
         category: selectedCategory,
         location: selectedLocation,
-        sortBy: "rotation", // Use daily rotation for fairness
       });
       const response = await fetch(`/api/products?${queryParams.toString()}`);
       const data = await response.json();
@@ -396,11 +280,6 @@ export default function MarketGrid({
       setLocalLoading(false);
     }
   };
-
-  // Scroll to top when page changes or filters change
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [page, debouncedSearchQuery, selectedCategory, selectedLocation]);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -578,8 +457,6 @@ export default function MarketGrid({
                 heroShowcaseProducts={heroShowcaseProducts}
                 heroShowcaseIndex={heroShowcaseIndex}
                 tickerHeightClass="h-56"
-                isAudioPlaying={isAudioPlaying}
-                onPlayAudio={handlePlayAudio}
               />
             </motion.div>
           )}
@@ -631,8 +508,6 @@ export default function MarketGrid({
                   heroShowcaseProducts={heroShowcaseProducts}
                   heroShowcaseIndex={heroShowcaseIndex}
                   tickerHeightClass="h-72"
-                  isAudioPlaying={isAudioPlaying}
-                  onPlayAudio={handlePlayAudio}
                 />
               </motion.div>
             )}
@@ -865,24 +740,6 @@ export default function MarketGrid({
                       <MapPin className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                       <span className="line-clamp-1">{p.availableArea}</span>
                     </span>
-
-                    {/* Order-only badge if product is available by order only */}
-                    {p.isOrderOnly && (
-                      <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg p-1.5 flex items-start gap-1 text-[8px] leading-snug">
-                        <div className="mt-0.5 shrink-0 text-indigo-600 font-bold">📋</div>
-                        <div>
-                          <div className="font-extrabold text-indigo-900">Order Only</div>
-                          <div className="text-indigo-700">Lead: {p.orderLeadTime}</div>
-                          {p.fulfillmentMethods && (
-                            <div className="text-indigo-600 text-[7px] mt-0.5">
-                              {p.fulfillmentMethods.includes("delivery") && "🚚 Delivery "}
-                              {p.fulfillmentMethods.includes("delivery") && p.fulfillmentMethods.includes("pickup") && "& "}
-                              {p.fulfillmentMethods.includes("pickup") && "🏪 Pickup"}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Report Warnings if seller has been flagged */}
                     {p.reportCount && p.reportCount > 0 ? (

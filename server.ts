@@ -699,6 +699,7 @@ async function logBossKuQuery(entry: {
 const STOPWORDS = new Set([
   "saya", "sy", "nak", "mau", "mahu", "cari", "carikan", "boleh", "tolong",
   "ada", "kah", "ka", "bah", "ne", "lah", "la", "di", "dekat", "area",
+  "kk", "kedai", "shop", "store", "penjual", "seller", "peniaga",
   "the", "a", "an", "for", "please", "want", "need", "looking", "find",
   "me", "i", "im", "i'm", "to", "in", "at", "is", "there", "any", "some",
   "with", "and", "or", "of",
@@ -813,6 +814,7 @@ function isRejection(lower: string): boolean {
 // instead of running a (guaranteed-empty) product search.
 // ----------------------------------------------------------------------------
 const REGISTRATION_WORDS = [
+  "join", "daftar", "register", "ikut",
   "jadi seller", "jadi penjual", "daftar jadi", "macam mana mau jadi", "mcm mana mau jadi",
   "macam mana nak jadi", "mcm mana nak jadi", "how to become a seller", "how to register",
   "how do i register", "still can register", "boleh register ka", "boleh daftar ka",
@@ -827,7 +829,21 @@ const SELLER_OPS_WORDS = [
   "mcm mana dapat verified", "saya dari kampung boleh", "saya jual", "orang tau barang saya",
 ];
 function isSellerOnboardingQuestion(lower: string): boolean {
-  return REGISTRATION_WORDS.some((w) => lower.includes(w)) || SELLER_OPS_WORDS.some((w) => lower.includes(w));
+  return REGISTRATION_WORDS.some((w) => {
+    const pattern = w.includes(" ") ? w : `\\b${w}\\b`;
+    return new RegExp(pattern, "i").test(lower);
+  }) || SELLER_OPS_WORDS.some((w) => lower.includes(w));
+}
+
+function isPlatformFeeQuestion(lower: string): boolean {
+  return /\b(berbayar|bayar|paid|fee|yuran|harga|cost|kos|trial|percubaan)\b/i.test(lower) &&
+    /\b(platform|app|aplikasi|tamubah|ni|ini|registration|daftar|register|join)\b/i.test(lower);
+}
+
+function platformFeeReply(language: "EN" | "BM"): string {
+  return language === "BM"
+    ? "Pendaftaran TamuBah percuma bah, dan bulan pertama percuma dengan akses penuh semua ciri. Lepas 1 bulan, cuma RM20 sebulan untuk penyelenggaraan platform."
+    : "Registration on TamuBah is free, and the first month is free with access to all features. After that, it is RM20/month to maintain the platform.";
 }
 
 function sellerOnboardingReply(lower: string, language: "EN" | "BM"): string {
@@ -1054,6 +1070,7 @@ function findProductDescriptors(pool: { title: string; description?: string }[],
 // district border — mappings here are a reasonable best guess; adjust if
 // your team knows the exact administrative boundary.
 const LOCATION_ALIASES: Record<string, string> = {
+  "kk": "Kota Kinabalu",
   "likas": "Kota Kinabalu",
   "inanam": "Kota Kinabalu",
   "kolombong": "Kota Kinabalu",
@@ -1375,6 +1392,9 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   if (isSellerOnboardingQuestion(lower)) {
     return empty(sellerOnboardingReply(lower, language));
   }
+  if (isPlatformFeeQuestion(lower)) {
+    return empty(platformFeeReply(language));
+  }
 
   const detectedLocation = detectBossKuLocation(lower);
   const detectedCategory = detectBossKuCategory(lower);
@@ -1384,7 +1404,12 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
   const wantsServiceAffirm = isServiceRequest(lower);
   const priceMatch = lower.match(/(?:bawah|under|kurang(?:\s+dari)?|below)\s*rm?\s*(\d+)/);
   const priceCeiling = priceMatch ? parseInt(priceMatch[1], 10) : null;
-  const keywords = extractBossKuKeywords(rawMessage, detectedLocation, detectedCategory);
+  let keywords = extractBossKuKeywords(rawMessage, detectedLocation, detectedCategory);
+  // "runner" is a category request, not a literal product-title keyword.
+  // Keep other service terms (such as "cleaning") strict and searchable.
+  if (detectedCategory === "Services&Runners") {
+    keywords = keywords.filter((keyword) => keyword !== "runner" && keyword !== "runners");
+  }
 
   // ---- 3. "Describe this shop" — a specific registered business name was
   // mentioned by name, so answer about that shop directly instead of a
@@ -1436,17 +1461,12 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
     if (kwFiltered.length > 0) {
       // Narrowing by free-text keywords found real matches — use them.
       candidates = kwFiltered;
-    } else if (!detectedLocation && !detectedCategory && !wantsServiceAffirm) {
-      // No structural signal at all (no location/category/service-intent) AND
-      // the free-text keywords matched nothing — this is almost certainly
-      // noise or an off-topic message (e.g. a random word), not a genuine
-      // product search. Treat it as a real "no results" instead of silently
-      // falling back to every product TamuBah has.
+    } else {
+      // A keyword is a hard constraint. Never broaden a failed keyword search
+      // into every product in a matching district/category, because that makes
+      // location queries look like they found unrelated products.
       candidates = [];
     }
-    // Otherwise (a location and/or category WAS detected): keep those
-    // structurally-filtered candidates even though the exact phrase didn't
-    // match any title/description — a partial match is still useful.
   }
 
   // Pull ratings for sorting/comparison
@@ -1529,7 +1549,7 @@ async function runBossKuSearch(rawMessage: string, language: "EN" | "BM") {
         const haystack = `${s.business_name} ${s.dream || ""}`.toLowerCase();
         return keywords.some((kw) => haystack.includes(kw));
       });
-      if (kwFiltered.length > 0) sellerCandidates = kwFiltered;
+      sellerCandidates = kwFiltered;
     }
     topSellers = sellerCandidates.slice(0, 5).map((s: any) => {
       const rb = ratingBySeller.get(s.id);
