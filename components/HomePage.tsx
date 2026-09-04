@@ -41,13 +41,13 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
 
         <div className="max-w-6xl mx-auto px-4 relative z-10 text-center space-y-6 md:space-y-8">
           <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full border border-emerald-100/60 uppercase tracking-widest">
-            {isEN ? "SABAHAN MICRO-BUSINESS HUB" : "HAB PERNIAGAAN MIKRO SABAH"}
+            {isEN ? "SABAHAN BUSINESS HUB" : "HAB PERNIAGAAN MIKRO SABAH"}
           </span>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-950 max-w-4xl mx-auto leading-tight">
             {isEN ? (
               <>
-                Empowering the Dreams of <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Sabahan Usahawan</span>
+                Rooted in Sabah, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Built for the Future</span>
               </>
             ) : (
               <>
@@ -58,7 +58,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
 
           <p className="text-slate-600 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             {isEN ? (
-              "TAMU BAH is a dedicated homegrown digital ecosystem built to showcase, promote, and elevate Sabah's micro-merchants and home-bakers. We connect passionate creators directly with local buyers."
+              "TAMU BAH is a dedicated homegrown digital ecosystem built to showcase, promote, and elevate Sabah's micro-merchants and home-bakers. We connect passionate creators directly with local buyers to establish Sabah as a self-sustaining digital economic hub — where every business, from the busiest street in Kota Kinabalu to the quietest village in the interior, has equal access to opportunity, and where the value created by Sabahans is retained, reinvested, and multiplied within Sabah itself."
             ) : (
               "TAMU BAH ialah ekosistem digital buatan tempatan yang direka khas untuk mempamerkan, mempromosikan, dan memartabatkan usahawan mikro dan pembuat roti rumah di Sabah. Kami menghubungkan pencipta kreatif terus dengan pembeli tempatan."
             )}
