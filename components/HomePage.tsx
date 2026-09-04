@@ -77,7 +77,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
               className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-extrabold rounded-2xl hover:border-slate-300 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
             >
               <Store className="w-4 h-4 text-emerald-600" />
-              {isEN ? "Register as Merchant" : "Daftar Sebagai Peniaga"}
+              {isEN ? "Register as Business" : "Daftar Sebagai Peniaga"}
             </button>
           </div>
 
@@ -121,7 +121,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
             <div className="space-y-4 text-slate-600 text-sm leading-relaxed">
               <p>
                 {isEN ? (
-                  "At the heart of TAMU BAH is a deep desire to help Sabahan merchants succeed. We believe that physical boundaries should never limit local potential. We provide a space where you can share your passion, list your products, and turn your business dreams into reality."
+                  "At the heart of TAMU BAH is a deep desire to help Sabahan businesses succeed. We believe that physical boundaries should never limit local potential. We provide a space where you can share your passion, list your products, and turn your business dreams into reality."
                 ) : (
                   "Di tengah-tengah landasan TAMU BAH ialah keinginan murni untuk membantu peniaga Sabah berkembang maju. Kami percaya sempadan geografi tidak sepatutnya mengehadkan potensi tempatan. Kami menyediakan ruang untuk anda berkongsi minat, menyenaraikan barangan, dan merealisasikan impian perniagaan anda."
                 )}
@@ -129,7 +129,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
               <div className="p-4 bg-emerald-50/50 border-l-4 border-emerald-500 rounded-r-xl">
                 <p className="font-medium text-emerald-950 italic">
                   {isEN ? (
-                    "\"We strongly emphasize and inspire our merchants to share their unique goals and life-dreams. Your personal journey is the spark that inspires the community!\""
+                    "\"We strongly emphasize and inspire our members to share their unique goals and life-dreams. Your personal journey is the spark that inspires the community!\""
                   ) : (
                     "\"Kami sangat menekankan dan memberi inspirasi kepada usahawan kami untuk berkongsi matlamat unik dan impian hidup mereka. Kisah anda adalah percikan yang memberi inspirasi kepada komuniti!\""
                   )}
@@ -176,7 +176,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
                 <div>
                   <h4 className="font-bold text-sm text-slate-800">{isEN ? "Local Economic Uplift" : "Memartabatkan Ekonomi Tempatan"}</h4>
                   <p className="text-slate-500 text-xs mt-0.5">
-                    {isEN ? "Focusing strictly on Sabahan micro-businesses (Tuaran, KK, Semporna, Penampang, etc.) to stimulate community wealth." : "Menumpukan sepenuhnya kepada usahawan mikro Sabah (Tuaran, KK, Semporna, Penampang, dll.) untuk memajukan ekonomi komuniti."}
+                    {isEN ? "Focusing strictly on Sabahan businesses (Tuaran, KK, Semporna, Penampang, etc.) to stimulate community wealth." : "Menumpukan sepenuhnya kepada usahawan mikro Sabah (Tuaran, KK, Semporna, Penampang, dll.) untuk memajukan ekonomi komuniti."}
                   </p>
                 </div>
               </li>
@@ -188,7 +188,19 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
                 <div>
                   <h4 className="font-bold text-sm text-slate-800">{isEN ? "Unleashing Creative Freedom" : "Membebaskan Kebebasan Kreatif"}</h4>
                   <p className="text-slate-500 text-xs mt-0.5">
-                    {isEN ? "Encouraging unique home-cooked culinary treats, traditional handicrafts, custom art, and personalized micro-services." : "Menggalakkan masakan rumah yang unik, kraftangan tradisional, seni tersendiri, dan perkhidmatan mikro."}
+                    {isEN ? "Encouraging unique home cooked culinary treats, traditional handicrafts, custom art, and personalized services." : "Menggalakkan masakan rumah yang unik, kraftangan tradisional, seni tersendiri, dan perkhidmatan peribadi."}
+                  </p>
+                </div>
+              </li>
+
+              <li className="flex gap-3">
+                <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-slate-800">{isEN ? "Collective Business Strength" : "Kekuatan Perniagaan Bersama"}</h4>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    {isEN ? "Empowering micro-entrepreneurs to stand alongside fellow local businesses, building a united and mutually supportive Sabahan business community." : "Memperkasakan usahawan mikro untuk berdiri bersama perniagaan tempatan lain, membina komuniti perniagaan Sabah yang bersatu dan saling menyokong."}
                   </p>
                 </div>
               </li>
@@ -206,7 +218,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
               {isEN ? "EASY SYSTEM GUIDE" : "PANDUAN RINGKAS SISTEM"}
             </span>
             <h2 className="text-3xl md:text-4xl font-black tracking-tight">
-              {isEN ? "How to Start as a Merchant" : "Cara Memulakan Langkah Anda"}
+              {isEN ? "How to Start as a Member" : "Cara Memulakan Langkah Anda"}
             </h2>
             <p className="text-slate-400 text-sm">
               {isEN ? (
@@ -224,7 +236,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
               <h3 className="font-extrabold text-base">{isEN ? "Create Your Account" : "Daftar Akaun Anda"}</h3>
               <p className="text-slate-400 text-xs leading-relaxed">
                 {isEN ? (
-                  "Sign up easily with your email, entrepreneur name, and business name. Choose your primary district from our Sabah locations list."
+                  "Sign up easily with your email, business name, and business name. Choose your primary district from our Sabah locations list."
                 ) : (
                   "Daftar dengan mudah menggunakan emel, nama pengusaha, dan nama perniagaan. Pilih daerah utama anda dari senarai lokasi Sabah."
                 )}
@@ -250,7 +262,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
               <h3 className="font-extrabold text-base">{isEN ? "Add Products & Share" : "Tambah Produk & Kongsi"}</h3>
               <p className="text-slate-400 text-xs leading-relaxed">
                 {isEN ? (
-                  "List your fresh bakes, handmade crafts, or services. Toggle stock availability in real-time. Buyers tap and chat directly via WhatsApp!"
+                  "List your fresh bakes, handmade crafts, or any services. Toggle stock availability in real-time. Visitors tap and chat directly via WhatsApp!"
                 ) : (
                   "Senaraikan masakan segar, kraf tangan, atau servis anda. Kemas kini status stok dalam masa nyata. Pembeli hubungi anda terus di WhatsApp!"
                 )}
@@ -376,7 +388,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
             </h4>
             <p className="text-slate-500 text-xs leading-relaxed">
               {isEN ? (
-                "Any home-baker, caterer, small farmer, handicraft maker, runner or service provider based in Sabah is welcome to join!"
+                "To join TamuBah, you must: (1) be a Malaysian citizen, (2) reside in Sabah, and (3) have a business or service to offer."
               ) : (
                 "Sesiapa sahaja pengusaha roti rumah, katerer, petani kecil, pembuat kraftangan, penghantar barang atau penyedia servis di Sabah dialu-alukan!"
               )}
@@ -426,10 +438,14 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
       </section>
 
       {/* Ownership / legal footer */}
-      <section className="max-w-4xl mx-auto px-4 pb-10">
+      <section className="max-w-4xl mx-auto px-4 pb-10 space-y-1.5">
+        <p className="text-center text-[11px] text-slate-400 leading-relaxed">
+          {isEN ? "TamuBah WhatsApp" : "WhatsApp TamuBah"}{" "}
+          <span className="font-semibold text-slate-500">01154412099</span>
+        </p>
         <p className="text-center text-[11px] text-slate-400 leading-relaxed">
           {isEN ? "Owned & operated by" : "Dimiliki & dikendalikan oleh"}{" "}
-          <span className="font-semibold text-slate-500">TAMUBAH GLOBAL 202603219687 (AS0520291-W)</span>
+          <span className="font-semibold text-slate-500">TAMUBAH GLOBAL (AS0520291-W)</span>
         </p>
       </section>
 

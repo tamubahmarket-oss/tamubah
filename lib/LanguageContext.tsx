@@ -10,7 +10,7 @@ const translations: Record<Language, Record<string, string>> = {
     seller_space: "Seller Space",
     dev_team: "TamuBah Dev Team",
     sign_in: "Sign In",
-    join_as_seller: "Join as Seller",
+    join_as_seller: "Join as Business",
     manage_my_shop: "Manage My Shop",
     logout: "Log Out",
     welcome_back: "Welcome back",
