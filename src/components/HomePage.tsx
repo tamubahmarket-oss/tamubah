@@ -59,7 +59,7 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
 
           <p className="text-slate-200 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             {isEN ? (
-              "TAMU BAH is a dedicated homegrown digital ecosystem built to showcase, promote, and elevate Sabah's micro-merchants and home-bakers. We connect passionate creators directly with local buyers to establish Sabah as a self-sustaining digital economic hub — where every business, from the busiest street in Kota Kinabalu to the quietest village in the interior, has equal access to opportunity, and where the value created by Sabahans is retained, reinvested, and multiplied within Sabah itself."
+              "TAMU BAH is a dedicated homegrown digital ecosystem built to showcase, promote, and elevate Sabah's businesses and home based entrepreneurs. We connect passionate creators directly with local buyers to establish Sabah as a self sustaining digital economic hub: where every business, from the busiest street in Kota Kinabalu to the quietest village in the interior, has equal access to opportunity, and where the value created by Sabahans is retained, reinvested, and multiplied within Sabah itself."
             ) : (
               "TAMU BAH ialah ekosistem digital buatan tempatan yang direka khas untuk mempamerkan, mempromosikan, dan memartabatkan usahawan mikro dan pembuat roti rumah di Sabah. Kami menghubungkan pencipta kreatif terus dengan pembeli tempatan."
             )}
