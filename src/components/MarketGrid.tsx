@@ -14,6 +14,8 @@ import { useCategories } from "../lib/categoryStore";
 import StoryBar from "./StoryBar";
 import NearMeMap from "./NearMeMap";
 import tamubahLogo from "../assets/images/traditional_bag_logo_1784122537315.jpg";
+import marketHeroBackground from "../assets/images/market_hero_background.jpg";
+import tamubahIconCyan from "../assets/images/tamubah_icon_cyan.png";
 
 interface MarketGridProps {
   products: Product[];
@@ -39,13 +41,34 @@ interface HeroShopCardProps {
 function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, tickerHeightClass }: HeroShopCardProps) {
   const current = heroShowcaseProducts[heroShowcaseIndex];
   return (
-    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-      {/* Slim brand strip — icon-sized logo, not a full header */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
-        <img src={tamubahLogo} alt="TamuBah" className="w-6 h-6 rounded-full object-cover shrink-0" />
-        <span className="font-display font-bold text-slate-900 text-sm">TamuBah</span>
-        <span className="flex items-center gap-1 ml-auto text-emerald-700">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+    <div
+      className="relative rounded-3xl overflow-hidden border border-cyan-300/40 backdrop-blur-md"
+      style={{
+        background: "rgba(6,16,28,0.55)",
+        boxShadow: "0 0 30px rgba(34,211,238,0.2), inset 0 0 40px rgba(34,211,238,0.05)",
+      }}
+    >
+      {/* Faint holographic grid overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.08]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(34,211,238,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.6) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+
+      {/* Slim brand strip — cyan icon-only badge, glowing */}
+      <div className="relative flex items-center gap-2 px-4 py-2.5 border-b border-cyan-400/20">
+        <img
+          src={tamubahIconCyan}
+          alt="TamuBah"
+          className="w-6 h-6 object-contain shrink-0"
+          style={{ filter: "drop-shadow(0 0 5px rgba(34,211,238,0.9))" }}
+        />
+        <span className="font-display font-bold text-cyan-50 text-sm tracking-wide">TamuBah</span>
+        <span className="flex items-center gap-1 ml-auto text-cyan-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
           <span className="text-[10px] font-bold uppercase tracking-wide">
             {language === "EN" ? "Live" : "Aktif"}
           </span>
@@ -54,7 +77,7 @@ function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, ticke
 
       {/* The shop window itself — the product/service fills almost the
           entire card, full-bleed image with the details captioned over it. */}
-      <div className={`relative ${tickerHeightClass} bg-slate-100`}>
+      <div className={`relative ${tickerHeightClass} bg-slate-900/40`}>
         {current ? (
           <AnimatePresence mode="wait">
             <motion.div
@@ -66,26 +89,26 @@ function HeroShopCard({ language, heroShowcaseProducts, heroShowcaseIndex, ticke
               className="absolute inset-0"
             >
               <img src={current.imageUrl} alt={current.title} className="w-full h-full object-cover" />
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-3">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pt-10 pb-3">
                 <p className="text-white font-bold text-base leading-tight truncate">{current.title}</p>
                 <div className="flex items-center justify-between gap-2 mt-0.5">
                   <p className="text-white/75 text-xs truncate">{current.businessName}</p>
-                  <p className="text-white font-bold text-sm shrink-0">RM {current.price?.toFixed(2)}</p>
+                  <p className="text-cyan-300 font-bold text-sm shrink-0">RM {current.price?.toFixed(2)}</p>
                 </div>
               </div>
             </motion.div>
           </AnimatePresence>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-cyan-200/60">
               {language === "EN" ? "New listings coming soon" : "Penyenaraian baharu tidak lama lagi"}
             </p>
           </div>
         )}
       </div>
 
-      <div className="px-4 py-3">
-        <a href="#market-grid-container" className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 w-fit">
+      <div className="relative px-4 py-3 border-t border-cyan-400/10">
+        <a href="#market-grid-container" className="text-xs font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1 w-fit">
           {language === "EN" ? "Browse all shops" : "Lihat semua kedai"} <ArrowUpRight className="w-3 h-3" />
         </a>
       </div>
@@ -418,23 +441,26 @@ export default function MarketGrid({
       </div>
 
       {/* Hero Intro Section — mobile: unchanged simple centered layout */}
-      <div className="relative text-center max-w-3xl mx-auto mb-12 py-2 md:hidden">
-        <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
+      <div
+        className="relative text-center max-w-3xl mx-auto mb-12 py-8 px-4 md:hidden rounded-[2.5rem] overflow-hidden bg-cover bg-center"
+        style={{ backgroundImage: `url(${marketHeroBackground})` }}
+      >
+        <div className="absolute inset-0 bg-slate-950/70 rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
         <div className="relative flex items-center justify-center gap-3 mb-4">
-          <span className="h-px w-8 bg-amber-400/60"></span>
-          <span className="text-amber-700 text-[11px] font-bold uppercase tracking-[0.2em]">
+          <span className="h-px w-8 bg-cyan-300/60"></span>
+          <span className="text-cyan-300 text-[11px] font-bold uppercase tracking-[0.2em]">
             {t("from_sabahan")}
           </span>
-          <span className="h-px w-8 bg-amber-400/60"></span>
+          <span className="h-px w-8 bg-cyan-300/60"></span>
         </div>
-        <h1 className="relative text-4xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
+        <h1 className="relative text-4xl font-display font-semibold tracking-tight text-white leading-[1.08]">
           {language === "EN" ? (
-            <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Business</span></>
+            <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent italic">Business</span></>
           ) : (
-            <>Sokong <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
+            <>Sokong <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
           )}
         </h1>
-        <p className="relative text-slate-500 text-sm mt-4 font-sans leading-relaxed">
+        <p className="relative text-slate-200 text-sm mt-4 font-sans leading-relaxed">
           {t("order_authentic")}
         </p>
 
@@ -467,8 +493,11 @@ export default function MarketGrid({
           0-2s: centered. After 2s: text shifts left (~56% width), a branded
           TamuBah shop panel slides in from the right (~38% width) with a
           continuously looping live-product ticker inside it. */}
-      <div className="hidden md:block relative mb-12 py-10 min-h-[420px]">
-        <div className="absolute inset-0 -mx-6 -my-4 weave-texture rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
+      <div
+        className="hidden md:block relative mb-12 py-10 px-8 min-h-[420px] rounded-[2.5rem] overflow-hidden bg-cover bg-center"
+        style={{ backgroundImage: `url(${marketHeroBackground})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/60 to-slate-950/30 rounded-[2.5rem] pointer-events-none" aria-hidden="true"></div>
         <div className={`relative flex items-center gap-6 transition-[justify-content] duration-700 ${heroShifted ? "justify-between" : "justify-center"}`}>
           <motion.div
             layout
@@ -476,20 +505,20 @@ export default function MarketGrid({
             className={heroShifted ? "text-left w-[56%]" : "text-center w-full max-w-3xl"}
           >
             <div className={`relative flex items-center gap-3 mb-4 ${heroShifted ? "justify-start" : "justify-center"}`}>
-              <span className="h-px w-8 bg-amber-400/60"></span>
-              <span className="text-amber-700 text-[11px] font-bold uppercase tracking-[0.2em]">
+              <span className="h-px w-8 bg-cyan-300/60"></span>
+              <span className="text-cyan-300 text-[11px] font-bold uppercase tracking-[0.2em]">
                 {t("from_sabahan")}
               </span>
-              {!heroShifted && <span className="h-px w-8 bg-amber-400/60"></span>}
+              {!heroShifted && <span className="h-px w-8 bg-cyan-300/60"></span>}
             </div>
-            <h1 className="relative text-5xl lg:text-6xl font-display font-semibold tracking-tight text-slate-900 leading-[1.08]">
+            <h1 className="relative text-5xl lg:text-6xl font-display font-semibold tracking-tight text-white leading-[1.08]">
               {language === "EN" ? (
-                <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Business</span></>
+                <>Support Our Local Sabahan <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent italic">Business</span></>
               ) : (
-                <>Sokong <span className="bg-gradient-to-r from-emerald-700 to-amber-600 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
+                <>Sokong <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent italic">Perniagaan</span> Tempatan Orang Kita</>
               )}
             </h1>
-            <p className="relative text-slate-500 text-base mt-4 font-sans leading-relaxed max-w-xl">
+            <p className="relative text-slate-200 text-base mt-4 font-sans leading-relaxed max-w-xl">
               {t("order_authentic")}
             </p>
           </motion.div>
