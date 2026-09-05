@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, MapPin, Loader2, AlertCircle, Navigation } from "lucide-react";
+import { X, MapPin, Loader2, AlertCircle, Navigation, Plus, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "../lib/LanguageContext";
 import { loadGoogleMaps } from "../lib/googleMapsLoader";
@@ -154,7 +154,7 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
       center,
       zoom: 13,
       disableDefaultUI: true,
-      zoomControl: true,
+      zoomControl: false,
       clickableIcons: false,
       styles: CLEAN_MAP_STYLE,
     });
@@ -312,6 +312,18 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
     ws.onerror = () => {};
   }
 
+  function handleZoomIn() {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setZoom((map.getZoom() || 13) + 1);
+  }
+
+  function handleZoomOut() {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setZoom((map.getZoom() || 13) - 1);
+  }
+
   function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -369,6 +381,25 @@ export default function NearMeMap({ open, onClose, onViewSellerShop }: NearMeMap
               )}
 
               <div ref={mapDivRef} className="w-full h-full" />
+
+              {state === "ready" && (
+                <div className="absolute bottom-56 right-3 flex flex-col rounded-full bg-white shadow-lg border border-slate-200 overflow-hidden z-10">
+                  <button
+                    onClick={handleZoomIn}
+                    title={isEN ? "Zoom in" : "Zum masuk"}
+                    className="w-10 h-10 flex items-center justify-center hover:bg-slate-50 border-b border-slate-100"
+                  >
+                    <Plus className="w-4.5 h-4.5 text-emerald-600" />
+                  </button>
+                  <button
+                    onClick={handleZoomOut}
+                    title={isEN ? "Zoom out" : "Zum keluar"}
+                    className="w-10 h-10 flex items-center justify-center hover:bg-slate-50"
+                  >
+                    <Minus className="w-4.5 h-4.5 text-emerald-600" />
+                  </button>
+                </div>
+              )}
 
               {state === "ready" && (
                 <button

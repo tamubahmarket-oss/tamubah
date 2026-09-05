@@ -1,162 +1,45 @@
-import React, { useId } from "react";
-import bagWatermark from "../assets/images/tamubah-bag-watermark.png";
+import React from "react";
+import badgeBronze from "../assets/images/badge_bronze.png";
+import badgeSilver from "../assets/images/badge_silver.png";
+import badgeGold from "../assets/images/badge_gold.png";
+import badgeLicensed from "../assets/images/badge_licensed.png";
+
+export type VerificationTier = "Bronze" | "Silver" | "Gold" | "Licensed";
 
 interface VerificationMedalProps {
-  tier: "Bronze" | "Silver" | "Gold";
-  size?: number; // pixel width; height scales proportionally
+  tier: VerificationTier;
+  size?: number; // pixel width; height scales proportionally to the badge art
   className?: string;
-  /** "full" = medal + ribbon tails, for spacious spots like the shop modal.
-   *  "seal" = just the round medallion, no tails, for tight spots like a
-   *  small avatar-corner badge on a dense grid card. */
+  /** "full" and "seal" both render the same real badge photo — kept as a
+   *  prop for backwards compatibility with existing call sites. */
   variant?: "full" | "seal";
 }
 
-// Tier color ramps — each is a 3-stop gradient (highlight -> mid -> shadow)
-// so the seal reads as a lifted, lit metal disc rather than a flat tint.
-// Gold intentionally uses TamuBah's brand green instead of literal yellow-gold,
-// since green is the platform's own "premium" color.
-const TIER_COLORS: Record<VerificationMedalProps["tier"], { light: string; mid: string; dark: string; text: string }> = {
-  Bronze: { light: "#e3a874", mid: "#b6702f", dark: "#7a4419", text: "Bronze Verified Business" },
-  Silver: { light: "#f1f4f6", mid: "#b9c2c9", dark: "#7c8790", text: "Silver Verified Business" },
-  Gold: { light: "#6fe0a8", mid: "#0f9d58", dark: "#0b5c34", text: "Gold Verified Business" },
+const TIER_IMAGE: Record<VerificationTier, string> = {
+  Bronze: badgeBronze,
+  Silver: badgeSilver,
+  Gold: badgeGold,
+  Licensed: badgeLicensed,
 };
 
-// Dark-navy face color used inside every tier (matches the reference badge's
-// navy center), fading slightly toward the rim for a subtle domed look.
-const FACE_NAVY_LIGHT = "#173a5e";
-const FACE_NAVY_DARK = "#0a1f33";
+const TIER_LABEL: Record<VerificationTier, string> = {
+  Bronze: "Bronze Verified Business",
+  Silver: "Silver Verified Business",
+  Gold: "Gold Verified Business",
+  Licensed: "Licensed / SSM Verified Business",
+};
 
-function buildScallopedSealPath(cx: number, cy: number, outerR: number, innerR: number, points: number): string {
-  const step = (Math.PI * 2) / (points * 2);
-  let d = "";
-  for (let i = 0; i < points * 2; i++) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const angle = i * step - Math.PI / 2;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    d += (i === 0 ? "M" : "L") + x.toFixed(2) + "," + y.toFixed(2) + " ";
-  }
-  return d + "Z";
-}
-
-export default function VerificationMedal({ tier, size = 88, className = "", variant = "full" }: VerificationMedalProps) {
-  const uid = useId().replace(/[:]/g, "");
-  const colors = TIER_COLORS[tier];
-  const sealPath = buildScallopedSealPath(100, 96, 74, 63, 20);
-  const isSealOnly = variant === "seal";
-  // "seal" crops tight around just the medallion (roughly x:18-182, y:14-178)
-  // so there's no empty space where the ribbon tails would have been.
-  const viewBox = isSealOnly ? "18 14 164 164" : "0 0 200 240";
-  const aspectH = isSealOnly ? 164 : 240;
-  const aspectW = isSealOnly ? 164 : 200;
-
+export default function VerificationMedal({ tier, size = 88, className = "" }: VerificationMedalProps) {
   return (
-    <svg
-      viewBox={viewBox}
+    <img
+      src={TIER_IMAGE[tier]}
+      alt={`${tier} — ${TIER_LABEL[tier]}`}
+      title={TIER_LABEL[tier]}
       width={size}
-      height={(size * aspectH) / aspectW}
-      className={className}
-      role="img"
-      aria-label={`${tier} — ${colors.text}`}
-    >
-      <defs>
-        <linearGradient id={`rim-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={colors.light} />
-          <stop offset="45%" stopColor={colors.mid} />
-          <stop offset="100%" stopColor={colors.dark} />
-        </linearGradient>
-        <linearGradient id={`ribbon-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={colors.dark} />
-          <stop offset="50%" stopColor={colors.mid} />
-          <stop offset="100%" stopColor={colors.dark} />
-        </linearGradient>
-        <radialGradient id={`face-${uid}`} cx="38%" cy="32%" r="75%">
-          <stop offset="0%" stopColor={FACE_NAVY_LIGHT} />
-          <stop offset="100%" stopColor={FACE_NAVY_DARK} />
-        </radialGradient>
-        <radialGradient id={`shine-${uid}`} cx="34%" cy="26%" r="40%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </radialGradient>
-        <filter id={`drop-${uid}`} x="-40%" y="-40%" width="180%" height="180%">
-          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000000" floodOpacity="0.35" />
-        </filter>
-        <clipPath id={`face-clip-${uid}`}>
-          <circle cx="100" cy="96" r="54" />
-        </clipPath>
-      </defs>
-
-      <g filter={`url(#drop-${uid})`}>
-        {/* Ribbon tails, skipped entirely in "seal" variant */}
-        {!isSealOnly && (
-          <>
-            <path
-              d="M76,150 L76,228 L100,210 L92,150 Z"
-              fill={`url(#ribbon-${uid})`}
-              transform="rotate(-8 88 190)"
-            />
-            <path
-              d="M124,150 L124,228 L100,210 L108,150 Z"
-              fill={`url(#ribbon-${uid})`}
-              transform="rotate(8 112 190)"
-            />
-          </>
-        )}
-
-        {/* Outer scalloped seal (the coin itself) */}
-        <path d={sealPath} fill={`url(#rim-${uid})`} stroke={colors.dark} strokeWidth="1" />
-
-        {/* Thin inner ridge ring for depth, between rim and navy face */}
-        <circle cx="100" cy="96" r="58" fill="none" stroke={colors.dark} strokeOpacity="0.5" strokeWidth="2" />
-
-        {/* Navy face */}
-        <circle cx="100" cy="96" r="54" fill={`url(#face-${uid})`} stroke={colors.light} strokeWidth="2" />
-
-        {/* TamuBah bag mark, faint watermark sitting on the navy face,
-            behind the wordmark and the glossy highlight. Both href and
-            xlinkHref are set since older WebKit-based renderers only
-            recognize the xlink: form. */}
-        <image
-          href={bagWatermark}
-          xlinkHref={bagWatermark}
-          x="66"
-          y="62"
-          width="68"
-          height="61"
-          opacity="0.3"
-          clipPath={`url(#face-clip-${uid})`}
-          preserveAspectRatio="xMidYMid meet"
-        />
-
-        {/* Glossy highlight, upper-left, for the "3D dome" effect */}
-        <circle cx="100" cy="96" r="54" fill={`url(#shine-${uid})`} />
-
-        {/* Wordmark, stacked TAMU / BAH */}
-        <text
-          x="100"
-          y="88"
-          textAnchor="middle"
-          fontFamily="Arial, Helvetica, sans-serif"
-          fontWeight="800"
-          fontSize="22"
-          letterSpacing="2"
-          fill="#ffffff"
-        >
-          TAMU
-        </text>
-        <text
-          x="100"
-          y="112"
-          textAnchor="middle"
-          fontFamily="Arial, Helvetica, sans-serif"
-          fontWeight="800"
-          fontSize="22"
-          letterSpacing="3"
-          fill={colors.light}
-        >
-          BAH
-        </text>
-      </g>
-    </svg>
+      height={size}
+      className={`object-contain drop-shadow-md ${className}`}
+      style={{ width: size, height: "auto" }}
+      draggable={false}
+    />
   );
 }

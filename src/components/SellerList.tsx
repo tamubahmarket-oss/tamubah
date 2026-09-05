@@ -559,24 +559,13 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
                     </div>
 
                     {/* Verification badge, overlaid bottom-right of the circle.
-                        Bronze/Silver/Gold use the real 3D medal (compact "seal"
-                        variant, no ribbon tails, so it fits this tight corner).
-                        Licensed keeps the plain check-circle, matching the
-                        simple pill style used for it everywhere else on site. */}
-                    {seller.verificationTier === "Gold" || seller.verificationTier === "Silver" || seller.verificationTier === "Bronze" ? (
+                        All four tiers now use the real photographed badge/shield art. */}
+                    {seller.verificationTier === "Gold" || seller.verificationTier === "Silver" || seller.verificationTier === "Bronze" || seller.verificationTier === "Licensed" ? (
                       <span
                         className="absolute -bottom-1 -right-1 z-10 drop-shadow-md"
                         title={`${seller.verificationTier} Verified Seller`}
                       >
-                        <VerificationMedal tier={seller.verificationTier} variant="seal" size={26} />
-                      </span>
-                    ) : seller.verificationTier === "Licensed" ? (
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-md z-10"
-                        style={{ background: "#059669" }}
-                        title="Licensed Verified Business"
-                      >
-                        <BadgeCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                        <VerificationMedal tier={seller.verificationTier} size={26} />
                       </span>
                     ) : null}
                   </button>
@@ -743,9 +732,10 @@ export default function SellerList({ products, onRefreshProducts, initialSearchQ
 
             {(activeSellerModal.verificationTier === "Gold" ||
               activeSellerModal.verificationTier === "Silver" ||
-              activeSellerModal.verificationTier === "Bronze") && (
+              activeSellerModal.verificationTier === "Bronze" ||
+              activeSellerModal.verificationTier === "Licensed") && (
               <div className="hidden sm:block absolute right-8 top-1/2 -translate-y-1/2 drop-shadow-xl">
-                <VerificationMedal tier={activeSellerModal.verificationTier as "Gold" | "Silver" | "Bronze"} size={120} />
+                <VerificationMedal tier={activeSellerModal.verificationTier as "Gold" | "Silver" | "Bronze" | "Licensed"} size={120} />
               </div>
             )}
 
