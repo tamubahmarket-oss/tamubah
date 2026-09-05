@@ -33,7 +33,7 @@ export default function FeeComparisonCalculator({ isEN }: FeeComparisonCalculato
     <div
       className="relative rounded-3xl overflow-hidden border border-cyan-400/30"
       style={{
-        background: "rgba(6,16,28,0.2)",
+        background: "rgba(6,16,28,0.8)",
         boxShadow: "0 0 40px rgba(34,211,238,0.12), inset 0 0 60px rgba(34,211,238,0.04)",
       }}
     >
