@@ -31,9 +31,9 @@ export default function FeeComparisonCalculator({ isEN }: FeeComparisonCalculato
 
   return (
     <div
-      className="relative rounded-3xl overflow-hidden border border-cyan-400/30 backdrop-blur-md"
+      className="relative rounded-3xl overflow-hidden border border-cyan-400/30"
       style={{
-        background: "linear-gradient(180deg, rgba(10,26,43,0.35) 0%, rgba(5,12,22,0.45) 55%, rgba(2,6,9,0.55) 100%)",
+        background: "rgba(6,16,28,0.2)",
         boxShadow: "0 0 40px rgba(34,211,238,0.12), inset 0 0 60px rgba(34,211,238,0.04)",
       }}
     >
