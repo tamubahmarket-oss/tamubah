@@ -5,6 +5,7 @@ import {
   Mail, Globe
 } from "lucide-react";
 import { useLanguage } from "../lib/LanguageContext";
+import heroBackground from "../assets/images/hero_background.jpg";
 import FeeComparisonCalculator from "./FeeComparisonCalculator";
 
 interface HomePageProps {
@@ -32,32 +33,31 @@ export default function HomePage({ onLaunchMarket, onJoinAsSeller, logoUrl }: Ho
       </div>
       
       {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden pt-12 md:pt-20 pb-16 md:pb-24 border-b border-slate-100/80">
-
-        {/* Ambient subtle background decorative highlights */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none opacity-40 select-none z-0">
-          <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-emerald-100 blur-3xl" />
-          <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full bg-teal-100 blur-3xl" />
-        </div>
+      <section
+        className="relative overflow-hidden pt-12 md:pt-20 pb-16 md:pb-24 border-b border-slate-100/80 bg-cover bg-center"
+        style={{ backgroundImage: `url(${heroBackground})` }}
+      >
+        {/* Dark overlay for text readability over the photo */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/70 to-slate-950/85 z-0" />
 
         <div className="max-w-6xl mx-auto px-4 relative z-10 text-center space-y-6 md:space-y-8">
           <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-extrabold px-3.5 py-1.5 rounded-full border border-emerald-100/60 uppercase tracking-widest">
             {isEN ? "SABAHAN BUSINESS HUB" : "HAB PERNIAGAAN MIKRO SABAH"}
           </span>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-950 max-w-4xl mx-auto leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white max-w-4xl mx-auto leading-tight">
             {isEN ? (
               <>
-                Rooted in Sabah, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Built for the Future</span>
+                Rooted in Sabah, <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Built for the Future</span>
               </>
             ) : (
               <>
-                Memperkasakan Impian <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">Usahawan Tempatan</span> Sabah
+                Memperkasakan Impian <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Usahawan Tempatan</span> Sabah
               </>
             )}
           </h1>
 
-          <p className="text-slate-600 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
+          <p className="text-slate-200 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             {isEN ? (
               "TAMU BAH is a dedicated homegrown digital ecosystem built to showcase, promote, and elevate Sabah's micro-merchants and home-bakers. We connect passionate creators directly with local buyers to establish Sabah as a self-sustaining digital economic hub — where every business, from the busiest street in Kota Kinabalu to the quietest village in the interior, has equal access to opportunity, and where the value created by Sabahans is retained, reinvested, and multiplied within Sabah itself."
             ) : (
