@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import tamubahLogo from "./assets/images/traditional_bag_logo_1784122537315.jpg";
+import marketBgTexture from "./assets/images/market_bg_texture.jpg";
 import { useLanguage } from "./lib/LanguageContext";
 import { 
   ShoppingBag, Store, User, ChevronRight, MapPin, 
@@ -203,7 +204,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-800">
+    <div
+      className="min-h-screen flex flex-col font-sans text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-800"
+      style={{ backgroundImage: `url(${marketBgTexture})`, backgroundRepeat: "repeat", backgroundSize: "700px auto" }}
+    >
       
       {/* Sticky Header Navbar */}
       <header className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
